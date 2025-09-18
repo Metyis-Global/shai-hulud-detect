@@ -10,11 +10,27 @@
 
 <img src="shai_hulu_detector.jpg" alt="sshd" width="80%" />
 
-Cross-platform detection tools (Bash + Windows Batch) to identify indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 517+ npm packages. This self-replicating worm represents one of the most severe JavaScript supply chain attacks to date, surpassing previous incidents like the chalk/debug compromises, color-name attacks, and eslint package hijacking. The scripts currently detect 540+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
+A bash script to detect indicators of compromise from the September 2025 npm supply chain attacks, including the Shai-Hulud self-replicating worm and the chalk/debug crypto theft attack. This comprehensive detector covers 571+ compromised package versions across multiple attack campaigns, providing protection against the most severe JavaScript supply chain attacks to date.
 
 ## Overview
 
-The Shai-Hulud attack is a sophisticated self-replicating worm that compromises npm packages through stolen maintainer credentials. The malware uses postinstall hooks to propagate and employs Trufflehog to scan for secrets and credentials. This script detects multiple indicators of compromise (IoCs) to help identify if your system has been affected.
+This detector covers multiple npm supply chain attacks from September 2025:
+
+### 🎯 **Chalk/Debug Crypto Theft Attack** (September 8, 2025)
+- **Scope**: 18+ packages with 2+ billion weekly downloads
+- **Attack**: Cryptocurrency wallet address replacement in browsers
+- **Duration**: ~2 hours before detection
+- **Packages**: chalk, debug, ansi-styles, color-*, supports-*, and others
+- **Method**: XMLHttpRequest hijacking to steal crypto transactions
+
+### 🐛 **Shai-Hulud Self-Replicating Worm** (September 14-16, 2025)
+- **Scope**: 517+ packages across multiple namespaces
+- **Attack**: Credential harvesting and self-propagation
+- **Method**: Uses Trufflehog to scan for secrets, publishes stolen data to GitHub
+- **Propagation**: Self-replicates using stolen npm tokens
+- **Packages**: @ctrl/*, @crowdstrike/*, @operato/*, and many others
+
+The script detects indicators from both attacks to provide comprehensive protection against these sophisticated supply chain compromises.
 
 ## Quick Start
 
@@ -59,7 +75,7 @@ shai-hulud-detector.bat --paranoid C:\path\to\your\project
 ### High Risk Indicators
 - **Malicious workflow files**: `shai-hulud-workflow.yml` files in `.github/workflows/`
 - **Known malicious file hashes**: Files matching SHA-256 hash `46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09`
-- **Compromised package versions**: Specific versions of 517+ packages known to be compromised
+- **Compromised package versions**: Specific versions of 571+ packages from multiple attacks
 - **Suspicious postinstall hooks**: Package.json files with postinstall scripts containing curl, wget, or eval commands
 - **Trufflehog activity**: Files containing trufflehog references or credential scanning patterns
 - **Shai-Hulud repositories**: Git repositories named "Shai-Hulud" (used for data exfiltration)
@@ -71,16 +87,17 @@ shai-hulud-detector.bat --paranoid C:\path\to\your\project
 
 ## Compromised Packages Detected
 
-The script detects compromised packages from the Shai-Hulud attack, which affected 517+ packages total. **Our current detection covers 540+ confirmed compromised packages** with specific version numbers, plus broader namespace detection.
+The script detects compromised packages from multiple September 2025 attacks. **Our current detection covers 571+ confirmed compromised packages** with specific version numbers, plus broader namespace detection for comprehensive protection.
 
 ### Package Detection Method
 
 The script loads compromised packages from an external file (`compromised-packages.txt`) which contains:
-- **540+ confirmed compromised package versions** with exact version numbers
+- **571+ confirmed compromised package versions** with exact version numbers
 - **11 affected namespaces** for broader detection of packages from compromised maintainer accounts
 
 ### Key Compromised Packages Include
-- `@ctrl/tinycolor@4.1.0, 4.1.1, 4.1.2` - Primary attack vector (2M+ weekly downloads)
+- `@ctrl/tinycolor@4.1.1, 4.1.2` - Shai-Hulud attack vector (2M+ weekly downloads)
+- `chalk@5.6.1`, `debug@4.4.2` - Chalk/Debug crypto theft attack (2B+ weekly downloads)
 - `@art-ws/*` packages (16+ packages) - Art workspace utilities
 - `@crowdstrike/*` packages (25+ packages) - CrowdStrike-related packages
 - `@nativescript-community/*` packages (40+ packages) - NativeScript community tools
@@ -120,26 +137,28 @@ Check these security advisories regularly for newly discovered compromised packa
 3. Test the script to ensure detection works
 4. Consider contributing updates back to this repository
 
-**Coverage Note**: The Shai-Hulud attack affected 517+ packages total. Our detection now covers 540+ specific compromised package versions, which represents **comprehensive coverage** of the known compromised packages. Combined with namespace-based detection, this provides excellent protection against the attack. The higher number reflects multiple compromised versions of the same packages (e.g., @operato/board versions 9.0.36 through 9.0.46).
+**Coverage Note**: Multiple September 2025 attacks affected 571+ packages total. Our detection aims to provide **comprehensive coverage** across both the Shai-Hulud worm (517+ packages) and Chalk/Debug crypto theft (26+ packages) attacks. Combined with namespace-based detection, this should provide excellent protection against these sophisticated supply chain compromises.
 
 ## Latest Updates
 
 - **2025-09-18 v3.0.0**: **Critical Bug Fixes & Optimization** - Complete Windows Batch script stabilization
-  - **🔧 Critical Fixes**: Eliminated all "drive specified" errors and syntax issues that prevented script execution
-  - **⚡ Performance**: Enhanced temp file approach for reliable Windows file processing
-  - **🛡️ Full Functionality**: All core Shai-Hulud detection features now working perfectly on Windows
-  - **📊 Paranoid Mode**: Fixed typosquatting and network exfiltration detection with proper error handling
-  - **✅ Verified**: Script successfully completes and detects 53 total issues (4 high risk, 49 medium risk)
-  - **🚀 Robust**: Comprehensive error handling and cleanup for production-ready Windows deployment
+   - **🔧 Critical Fixes**: Eliminated all "drive specified" errors and syntax issues that prevented script execution
+   - **⚡ Performance**: Enhanced temp file approach for reliable Windows file processing
+   - **🛡️ Full Functionality**: All core Shai-Hulud detection features now working perfectly on Windows
+   - **📊 Paranoid Mode**: Fixed typosquatting and network exfiltration detection with proper error handling
+   - **✅ Verified**: Script successfully completes and detects 53 total issues (4 high risk, 49 medium risk)
+   - **🚀 Robust**: Comprehensive error handling and cleanup for production-ready Windows deployment
 - **2025-09-18 v2.0.0**: **Major Enhancement Release** - Complete feature parity between Bash and Windows Batch scripts
-  - **Enhanced Trufflehog Detection**: Risk level categorization (HIGH/MEDIUM/LOW) with file context analysis
-  - **Git Investigation Tools**: Added commit hashes and investigation commands for suspicious branches/repositories
-  - **File Previews**: Shows content preview for HIGH RISK files (malicious workflows, known hashes)
-  - **Optimized Performance**: Improved package loading with progress indicators and faster pattern matching
-  - **Enhanced Reporting**: Truncated paranoid mode results (max 5 shown), detailed explanatory notes
-  - **Package Integrity**: Timestamp checks for lockfiles modified within 30 days
-  - **Migration Detection**: Detects '-migration' suffix repositories and base64-encoded data.json files
-  - **Cross-Platform Excellence**: Windows Batch script now matches all Bash script capabilities
+   - **Multi-Attack Coverage**: Added 26 packages from Chalk/Debug crypto theft attack (571+ total). Now covers cryptocurrency wallet replacement patterns, XMLHttpRequest hijacking, and malicious function detection
+   - **Enhanced Trufflehog Detection**: Risk level categorization (HIGH/MEDIUM/LOW) with file context analysis
+   - **Git Investigation Tools**: Added commit hashes and investigation commands for suspicious branches/repositories
+   - **File Previews**: Shows content preview for HIGH RISK files (malicious workflows, known hashes)
+   - **Optimized Performance**: Improved package loading with progress indicators and faster pattern matching
+   - **Enhanced Reporting**: Truncated paranoid mode results (max 5 shown), detailed explanatory notes
+   - **Package Integrity**: Timestamp checks for lockfiles modified within 30 days
+   - **Migration Detection**: Detects '-migration' suffix repositories and base64-encoded data.json files
+   - **Cross-Platform Excellence**: Windows Batch script now matches all Bash script capabilities
+   - **Added JFrog and Aikido blog references** as primary sources for enhanced threat intelligence
 - **2025-09-17 v1.3.0**: **Complete JFrog integration** - Added 273 additional packages (540+ total) with comprehensive coverage of the complete JFrog 517-package analysis. Added 6 new namespaces: @yoobic, @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, and @ui-ux-gang
 - **2025-09-17 v1.2.0**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
 - **2025-09-16 v1.1.0**: Externalized compromised package list to `compromised-packages.txt` for easier maintenance and updates
@@ -216,6 +235,15 @@ The repository includes test cases to validate both scripts:
 
 # Test on mixed project (should show medium risk issues)
 ./shai-hulud-detector.sh test-cases/mixed-project
+
+# Test legitimate crypto libraries (should show MEDIUM risk only)
+./shai-hulud-detector.sh test-cases/legitimate-crypto
+
+# Test chalk/debug attack patterns (should show HIGH risk)
+./shai-hulud-detector.sh test-cases/chalk-debug-attack
+
+# Test common crypto libraries (should not trigger HIGH risk false positives)
+./shai-hulud-detector.sh test-cases/common-crypto-libs
 ```
 
 ### Batch Testing (Windows)
@@ -234,16 +262,17 @@ shai-hulud-detector.bat test-cases\mixed-project
 
 The script performs these comprehensive checks:
 
-1. **Package Database Loading**: Loads the complete list of 517+ compromised packages from `compromised-packages.txt`
+1. **Package Database Loading**: Loads the complete list of 571+ compromised packages from `compromised-packages.txt`
 2. **Workflow Detection**: Searches for `shai-hulud-workflow.yml` files in `.github/workflows/`
 3. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against known malicious hashes
 4. **Package Analysis**: Parses `package.json` files for specific compromised versions and affected namespaces
 5. **Postinstall Hook Detection**: Identifies suspicious postinstall scripts that could be used for malware propagation
 6. **Content Scanning**: Greps for suspicious URLs, webhook endpoints, and malicious patterns
-7. **Trufflehog Activity Detection**: Looks for evidence of credential scanning tools and secret harvesting
-8. **Git Analysis**: Checks for suspicious branch names and repository names
-9. **Repository Detection**: Identifies "Shai-Hulud" repositories used for data exfiltration
-10. **Package Integrity Checking**: Analyzes package-lock.json and yarn.lock files for compromised packages and suspicious modifications
+7. **Cryptocurrency Theft Detection**: Identifies wallet address replacement patterns, XMLHttpRequest hijacking, and known crypto theft functions from the September 8 attack
+8. **Trufflehog Activity Detection**: Looks for evidence of credential scanning tools and secret harvesting
+9. **Git Analysis**: Checks for suspicious branch names and repository names
+10. **Repository Detection**: Identifies "Shai-Hulud" repositories used for data exfiltration
+11. **Package Integrity Checking**: Analyzes package-lock.json and yarn.lock files for compromised packages and suspicious modifications
 
 ## Limitations
 
@@ -251,7 +280,7 @@ The script performs these comprehensive checks:
 - **Package Versions**: Detects specific compromised versions and namespace warnings, but new compromised versions may not be detected
 - **False Positives**: Legitimate use of webhook.site, Trufflehog for security, or postinstall hooks will trigger alerts
 - **Worm Evolution**: The self-replicating nature means new variants may emerge with different signatures
-- **Coverage**: May not detect all 517+ compromised packages or future iterations of the attack
+- **Coverage**: Covers known compromised packages from major September 2025 attacks
 - **Package Integrity**: Relies on lockfile analysis to detect compromised packages, but sophisticated attacks may evade detection
 
 ## Contributing
@@ -287,6 +316,8 @@ The script now includes:
 
 ### Primary Sources
 - [StepSecurity Blog: CTRL, tinycolor and 40 NPM packages compromised](https://www.stepsecurity.io/blog/ctrl-tinycolor-and-40-npm-packages-compromised)
+- [JFrog: New compromised packages in largest npm attack in history](https://jfrog.com/blog/new-compromised-packages-in-largest-npm-attack-in-history/)
+- [Aikido: NPM debug and chalk packages compromised](https://www.aikido.dev/blog/npm-debug-and-chalk-packages-compromised)
 - [Semgrep Security Advisory: NPM packages using secret scanning tools to steal credentials](https://semgrep.dev/blog/2025/security-advisory-npm-packages-using-secret-scanning-tools-to-steal-credentials/)
 - [Aikido: S1ngularity-nx attackers strike again](https://www.aikido.dev/blog/s1ngularity-nx-attackers-strike-again)
 
@@ -297,7 +328,7 @@ The script now includes:
 
 ### Attack Details
 - **Initial Discovery**: September 15, 2025
-- **Scale**: 517+ packages compromised
+- **Scale**: 571+ packages compromised across multiple attack campaigns
 - **Attack Type**: Self-replicating worm using postinstall hooks
 - **Malicious Endpoint**: `https://webhook.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7`
 - **Exfiltration Method**: GitHub repositories named "Shai-Hulud"

@@ -7,9 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2025-09-18
+
+### Added
+- **Multi-Attack Coverage**: Now covers ALL September 2025 npm supply chain attacks
+- Added 26 packages from Chalk/Debug crypto theft attack (September 8, 2025)
+- New cryptocurrency theft detection function with multiple pattern checks:
+  - Ethereum wallet address replacement patterns
+  - XMLHttpRequest prototype hijacking detection
+  - Known malicious function names (checkethereumw, runmask, etc.)
+  - Known attacker wallet addresses from the September 8 attack
+  - Phishing domain detection (npmjs.help)
+  - JavaScript obfuscation pattern detection
+- Attack-specific organization in compromised-packages.txt with clear sections
+- Enhanced documentation explaining multiple attack types and timeline
+
+### Changed
+- Expanded scope from Shai-Hulud only to comprehensive September 2025 attack coverage
+- Updated package count from 545 to 571+ compromised package versions
+- Enhanced README with detailed attack timeline and characteristics
+- Added cryptocurrency theft detection to core feature set
+
 ### Fixed
 - Removed false positive: @ctrl/tinycolor:4.1.0 was never compromised (only 4.1.1 and 4.1.2 were malicious)
-- Corrected package count from 546 to 545 compromised package versions
+- Corrected package count references throughout documentation
 
 ## [1.3.0] - 2025-09-17
 
