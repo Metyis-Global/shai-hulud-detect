@@ -34,7 +34,7 @@ chmod +x shai-hulud-detector.sh
 ./shai-hulud-detector.sh --paranoid /path/to/your/project
 ```
 
-### Windows (Batch)
+### Windows (Batch) - **NEW v2.0.0 Enhanced**
 ```batch
 # Clone the repository (required for compromised package list)
 git clone https://github.com/Metyis-Global/shai-hulud-detect.git
@@ -43,9 +43,16 @@ cd shai-hulud-detect
 # Scan your project for Shai-Hulud indicators
 shai-hulud-detector.bat C:\path\to\your\project
 
-# For comprehensive security scanning
+# For comprehensive security scanning with advanced features
 shai-hulud-detector.bat --paranoid C:\path\to\your\project
 ```
+
+**✨ New in v2.0.0**: The Windows Batch script now includes all advanced features:
+- 🔍 **File content previews** for HIGH RISK findings
+- 📊 **Risk level categorization** (HIGH/MEDIUM/LOW)
+- 🛠️ **Investigation commands** for suspicious Git branches and repositories
+- ⚡ **Optimized performance** with progress indicators during package loading
+- 📝 **Enhanced reporting** with explanatory notes and truncated paranoid results
 
 ## What it Detects
 
@@ -117,6 +124,15 @@ Check these security advisories regularly for newly discovered compromised packa
 
 ## Latest Updates
 
+- **2025-09-18 v2.0.0**: **Major Enhancement Release** - Complete feature parity between Bash and Windows Batch scripts
+  - **Enhanced Trufflehog Detection**: Risk level categorization (HIGH/MEDIUM/LOW) with file context analysis
+  - **Git Investigation Tools**: Added commit hashes and investigation commands for suspicious branches/repositories
+  - **File Previews**: Shows content preview for HIGH RISK files (malicious workflows, known hashes)
+  - **Optimized Performance**: Improved package loading with progress indicators and faster pattern matching
+  - **Enhanced Reporting**: Truncated paranoid mode results (max 5 shown), detailed explanatory notes
+  - **Package Integrity**: Timestamp checks for lockfiles modified within 30 days
+  - **Migration Detection**: Detects '-migration' suffix repositories and base64-encoded data.json files
+  - **Cross-Platform Excellence**: Windows Batch script now matches all Bash script capabilities
 - **2025-09-17 v1.3.0**: **Complete JFrog integration** - Added 273 additional packages (540+ total) with comprehensive coverage of the complete JFrog 517-package analysis. Added 6 new namespaces: @yoobic, @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, and @ui-ux-gang
 - **2025-09-17 v1.2.0**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
 - **2025-09-16 v1.1.0**: Externalized compromised package list to `compromised-packages.txt` for easier maintenance and updates
