@@ -18,7 +18,7 @@ MALICIOUS_HASH="46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09
 
 # Load compromised packages from external file
 # This allows for easier maintenance and updates as new compromised packages are discovered
-# Currently contains 540+ confirmed package versions from comprehensive JFrog analysis of Shai-Hulud attack
+# Currently contains 571+ confirmed package versions from multiple September 2025 npm attacks
 load_compromised_packages() {
     local script_dir="$(cd "$(dirname "$0")" && pwd)"
     local packages_file="$script_dir/compromised-packages.txt"
@@ -81,6 +81,7 @@ WORKFLOW_FILES=()
 MALICIOUS_HASHES=()
 COMPROMISED_FOUND=()
 SUSPICIOUS_CONTENT=()
+CRYPTO_PATTERNS=()
 GIT_BRANCHES=()
 POSTINSTALL_HOOKS=()
 TRUFFLEHOG_ACTIVITY=()
@@ -224,6 +225,51 @@ check_content() {
             fi
         fi
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.yml" -o -name "*.yaml" \) -print0 2>/dev/null)
+}
+
+# Check for cryptocurrency theft patterns (Chalk/Debug attack Sept 8, 2025)
+check_crypto_theft_patterns() {
+    local scan_dir=$1
+    print_status "$BLUE" "🔍 Checking for cryptocurrency theft patterns..."
+
+    # Check for wallet address replacement patterns
+    while IFS= read -r -d '' file; do
+        if grep -q "0x[a-fA-F0-9]\{40\}" "$file" 2>/dev/null; then
+            if grep -q -E "ethereum|wallet|address|crypto" "$file" 2>/dev/null; then
+                CRYPTO_PATTERNS+=("$file:Ethereum wallet address patterns detected")
+            fi
+        fi
+
+        # Check for XMLHttpRequest hijacking
+        if grep -q "XMLHttpRequest\.prototype\.send" "$file" 2>/dev/null; then
+            CRYPTO_PATTERNS+=("$file:XMLHttpRequest prototype modification detected")
+        fi
+
+        # Check for specific malicious functions from chalk/debug attack
+        if grep -q -E "checkethereumw|runmask|newdlocal|_0x19ca67" "$file" 2>/dev/null; then
+            CRYPTO_PATTERNS+=("$file:Known crypto theft function names detected")
+        fi
+
+        # Check for known attacker wallets
+        if grep -q -E "0xFc4a4858bafef54D1b1d7697bfb5c52F4c166976|1H13VnQJKtT4HjD5ZFKaaiZEetMbG7nDHx|TB9emsCq6fQw6wRk4HBxxNnU6Hwt1DnV67" "$file" 2>/dev/null; then
+            CRYPTO_PATTERNS+=("$file:Known attacker wallet address detected - HIGH RISK")
+        fi
+
+        # Check for npmjs.help phishing domain
+        if grep -q "npmjs\.help" "$file" 2>/dev/null; then
+            CRYPTO_PATTERNS+=("$file:Phishing domain npmjs.help detected")
+        fi
+
+        # Check for javascript obfuscation patterns
+        if grep -q "javascript-obfuscator" "$file" 2>/dev/null; then
+            CRYPTO_PATTERNS+=("$file:JavaScript obfuscation detected")
+        fi
+
+        # Check for cryptocurrency address regex patterns
+        if grep -q -E "ethereum.*0x\[a-fA-F0-9\]|bitcoin.*\[13\]\[a-km-zA-HJ-NP-Z1-9\]" "$file" 2>/dev/null; then
+            CRYPTO_PATTERNS+=("$file:Cryptocurrency regex patterns detected")
+        fi
+    done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 2>/dev/null)
 }
 
 # Check for shai-hulud git branches
@@ -857,6 +903,45 @@ generate_report() {
         echo
     fi
 
+    # Report cryptocurrency theft patterns
+    if [[ ${#CRYPTO_PATTERNS[@]} -gt 0 ]]; then
+        # Separate HIGH RISK and MEDIUM RISK crypto patterns
+        local crypto_high=()
+        local crypto_medium=()
+
+        for entry in "${CRYPTO_PATTERNS[@]}"; do
+            if [[ "$entry" == *"HIGH RISK"* ]] || [[ "$entry" == *"Known attacker wallet"* ]] || [[ "$entry" == *"XMLHttpRequest prototype"* ]]; then
+                crypto_high+=("$entry")
+            else
+                crypto_medium+=("$entry")
+            fi
+        done
+
+        # Report HIGH RISK crypto patterns
+        if [[ ${#crypto_high[@]} -gt 0 ]]; then
+            print_status "$RED" "🚨 HIGH RISK: Cryptocurrency theft patterns detected:"
+            for entry in "${crypto_high[@]}"; do
+                echo "   - ${entry}"
+                ((high_risk++))
+            done
+            echo -e "   ${RED}NOTE: These patterns strongly indicate crypto theft malware from the September 8 attack.${NC}"
+            echo -e "   ${RED}Immediate investigation and remediation required.${NC}"
+            echo
+        fi
+
+        # Report MEDIUM RISK crypto patterns
+        if [[ ${#crypto_medium[@]} -gt 0 ]]; then
+            print_status "$YELLOW" "⚠️  MEDIUM RISK: Potential cryptocurrency manipulation patterns:"
+            for entry in "${crypto_medium[@]}"; do
+                echo "   - ${entry}"
+                ((medium_risk++))
+            done
+            echo -e "   ${YELLOW}NOTE: These may be legitimate crypto tools or framework code.${NC}"
+            echo -e "   ${YELLOW}Manual review recommended to determine if they are malicious.${NC}"
+            echo
+        fi
+    fi
+
     # Report git branches
     if [[ ${#GIT_BRANCHES[@]} -gt 0 ]]; then
         print_status "$YELLOW" "⚠️  MEDIUM RISK: Suspicious git branches:"
@@ -1164,6 +1249,7 @@ main() {
     check_packages "$scan_dir"
     check_postinstall_hooks "$scan_dir"
     check_content "$scan_dir"
+    check_crypto_theft_patterns "$scan_dir"
     check_trufflehog_activity "$scan_dir"
     check_git_branches "$scan_dir"
     check_shai_hulud_repos "$scan_dir"

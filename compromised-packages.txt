@@ -1,6 +1,6 @@
 # Shai-Hulud NPM Supply Chain Attack - Compromised Packages List
 #
-# This file contains 516 confirmed compromised package versions from the complete JFrog analysis
+# This file contains 571+ confirmed compromised package versions from multiple September 2025 attacks
 # The Shai-Hulud attack was self-replicating, so new compromised packages may still be discovered
 #
 # Sources: StepSecurity, Wiz.io, Semgrep, JFrog security advisories
@@ -19,6 +19,49 @@
 # - Lines starting with # are comments and will be ignored
 #
 # Only Remove packages once you have verified they should not be on this list
+
+# ========================================================================
+# SEPTEMBER 8, 2025 - CHALK/DEBUG CRYPTO THEFT ATTACK (18+ packages)
+# Cryptocurrency wallet address replacement malware targeting browser users
+# Attack duration: ~2 hours on September 8, 2025
+# ========================================================================
+
+# Popular packages with 2+ billion weekly downloads affected
+ansi-regex:6.2.1
+ansi-styles:6.2.2
+backslash:0.2.1
+chalk:5.6.1
+chalk-template:1.1.1
+color-convert:3.1.1
+color-name:2.0.1
+color-string:2.1.1
+debug:4.4.2
+error-ex:1.3.3
+has-ansi:6.0.1
+is-arrayish:0.3.3
+simple-swizzle:0.2.3
+slice-ansi:7.1.1
+strip-ansi:7.1.1
+supports-color:10.2.1
+supports-hyperlinks:4.1.1
+wrap-ansi:9.0.1
+
+# Additional packages from extended campaign
+proto-tinker-wc:0.1.87
+prebid:10.9.1
+prebid:10.9.2
+
+# September 9, 2025 - DuckDB packages (extended from chalk/debug attack)
+@coveops/abi:2.0.1
+duckdb:1.3.3
+@duckdb/node-bindings:1.3.3
+@duckdb/duckdb-wasm:1.29.2
+@duckdb/node-api:1.3.3
+
+# ========================================================================
+# SEPTEMBER 14-16, 2025 - SHAI-HULUD SELF-REPLICATING WORM (517+ packages)
+# Credential harvesting and self-propagating malware
+# ========================================================================
 
 # @ctrl namespace - primary targets
 @ctrl/tinycolor:4.1.1
