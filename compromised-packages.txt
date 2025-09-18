@@ -1,6 +1,6 @@
 # Shai-Hulud NPM Supply Chain Attack - Compromised Packages List
 #
-# This file contains 517 confirmed compromised package versions from the complete JFrog analysis
+# This file contains 516 confirmed compromised package versions from the complete JFrog analysis
 # The Shai-Hulud attack was self-replicating, so new compromised packages may still be discovered
 #
 # Sources: StepSecurity, Wiz.io, Semgrep, JFrog security advisories
@@ -18,10 +18,9 @@
 # - Format: one package:version per line
 # - Lines starting with # are comments and will be ignored
 #
-# DO NOT REMOVE EXISTING PACKAGES - only add new ones as they are discovered
+# Only Remove packages once you have verified they should not be on this list
 
 # @ctrl namespace - primary targets
-@ctrl/tinycolor:4.1.0
 @ctrl/tinycolor:4.1.1
 @ctrl/tinycolor:4.1.2
 @ctrl/deluge:1.2.0
