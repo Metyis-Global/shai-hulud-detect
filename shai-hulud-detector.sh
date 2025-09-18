@@ -898,6 +898,106 @@ check_network_exfiltration() {
     done < <(find "$scan_dir" \( -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.mjs" \) -print0 2>/dev/null)
 }
 
+# Generate CSV report with all vulnerabilities
+generate_csv_report() {
+    local csv_file="shai-hulud-scan-$(date +%Y%m%d-%H%M%S).csv"
+    local csv_path="$(pwd)/$csv_file"
+
+    # Create CSV header
+    echo "Timestamp,Risk Level,Category,File Path,Description,Hash/Version" > "$csv_path"
+
+    # Add malicious workflow files
+    for file in "${WORKFLOW_FILES[@]}"; do
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),HIGH,Malicious Workflow,\"$file\",\"Malicious workflow file detected\",\"\"" >> "$csv_path"
+    done
+
+    # Add malicious file hashes
+    for entry in "${MALICIOUS_HASHES[@]}"; do
+        local file_path="${entry%:*}"
+        local hash="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),HIGH,Malicious Hash,\"$file_path\",\"File matches known malicious SHA-256 hash\",\"$hash\"" >> "$csv_path"
+    done
+
+    # Add compromised packages
+    for entry in "${COMPROMISED_FOUND[@]}"; do
+        local file_path="${entry%:*}"
+        local package_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),HIGH,Compromised Package,\"$file_path\",\"Compromised package version detected\",\"$package_info\"" >> "$csv_path"
+    done
+
+    # Add suspicious content
+    for entry in "${SUSPICIOUS_CONTENT[@]}"; do
+        local file_path="${entry%:*}"
+        local pattern="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),MEDIUM,Suspicious Content,\"$file_path\",\"$pattern\",\"\"" >> "$csv_path"
+    done
+
+    # Add git branches
+    for entry in "${GIT_BRANCHES[@]}"; do
+        local repo_path="${entry%%:*}"
+        local branch_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),MEDIUM,Suspicious Git Branch,\"$repo_path\",\"$branch_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add postinstall hooks
+    for entry in "${POSTINSTALL_HOOKS[@]}"; do
+        local file_path="${entry%:*}"
+        local hook_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),HIGH,Suspicious Postinstall Hook,\"$file_path\",\"$hook_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add Trufflehog activity
+    for entry in "${TRUFFLEHOG_ACTIVITY[@]}"; do
+        local file_path="${entry%%:*}"
+        local risk_level="${entry#*:}"
+        risk_level="${risk_level%%:*}"
+        local activity_info="${entry#*:*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),$risk_level,Trufflehog Activity,\"$file_path\",\"$activity_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add Shai-Hulud repositories
+    for entry in "${SHAI_HULUD_REPOS[@]}"; do
+        local repo_path="${entry%:*}"
+        local repo_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),HIGH,Shai-Hulud Repository,\"$repo_path\",\"$repo_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add namespace warnings
+    for entry in "${NAMESPACE_WARNINGS[@]}"; do
+        local file_path="${entry%%:*}"
+        local namespace_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),MEDIUM,Compromised Namespace,\"$file_path\",\"$namespace_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add package integrity issues
+    for entry in "${INTEGRITY_ISSUES[@]}"; do
+        local file_path="${entry%%:*}"
+        local issue_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),MEDIUM,Package Integrity Issue,\"$file_path\",\"$issue_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add typosquatting warnings (if any)
+    for entry in "${TYPOSQUATTING_WARNINGS[@]}"; do
+        local file_path="${entry%%:*}"
+        local warning_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),MEDIUM,Typosquatting Warning,\"$file_path\",\"$warning_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add network exfiltration warnings (if any)
+    for entry in "${NETWORK_EXFILTRATION_WARNINGS[@]}"; do
+        local file_path="${entry%%:*}"
+        local warning_info="${entry#*:}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),MEDIUM,Network Exfiltration Pattern,\"$file_path\",\"$warning_info\",\"\"" >> "$csv_path"
+    done
+
+    # Add low risk findings
+    for finding in "${LOW_RISK_FINDINGS[@]}"; do
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),LOW,Low Risk Finding,\"\",\"$finding\",\"\"" >> "$csv_path"
+    done
+
+    echo "$csv_path"
+}
+
 # Generate final report
 generate_report() {
     local paranoid_mode="$1"
@@ -1214,6 +1314,13 @@ generate_report() {
         fi
     fi
     print_status "$BLUE" "=============================================="
+
+    # Generate CSV report
+    local csv_file_path
+    csv_file_path=$(generate_csv_report)
+    echo
+    print_status "$GREEN" "📊 CSV Report Generated: $csv_file_path"
+    print_status "$BLUE" "   Use this file for automated processing, reporting, or import into other tools"
 }
 
 # Main execution
