@@ -4,13 +4,13 @@
 [![Shell](https://img.shields.io/badge/shell-Bash-blue)](#requirements)
 [![Status](https://img.shields.io/badge/status-Active-success)](../../)
 [![Contributions](https://img.shields.io/badge/contributions-Welcome-orange)](CONTRIBUTING.md)
-[![Last Commit](https://img.shields.io/github/last-commit/Cobenian/shai-hulud-detect)](https://github.com/Cobenian/shai-hulud-detect/commits/main)
+[![Last Commit](https://img.shields.io/github/last-commit/Metyis-Global/shai-hulud-detect)](https://github.com/Metyis-Global/shai-hulud-detect/commits/main)
 [![Security Tool](https://img.shields.io/badge/type-Security%20Tool-red)](#overview)
 
 
 <img src="shai_hulu_detector.jpg" alt="sshd" width="80%" />
 
-A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 517+ npm packages. This self-replicating worm represents one of the most severe JavaScript supply chain attacks to date, surpassing previous incidents like the chalk/debug compromises, color-name attacks, and eslint package hijacking. The script currently detects 540+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
+Cross-platform detection tools (Bash + Windows Batch) to identify indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 517+ npm packages. This self-replicating worm represents one of the most severe JavaScript supply chain attacks to date, surpassing previous incidents like the chalk/debug compromises, color-name attacks, and eslint package hijacking. The scripts currently detect 540+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
 
 ## Overview
 
@@ -18,10 +18,11 @@ The Shai-Hulud attack is a sophisticated self-replicating worm that compromises 
 
 ## Quick Start
 
+### Unix/Linux/macOS (Bash)
 ```bash
 # Clone the repository (required for compromised package list)
-git clone https://github.com/username/shai-hulud-detector.git
-cd shai-hulud-detector
+git clone https://github.com/Metyis-Global/shai-hulud-detect.git
+cd shai-hulud-detect
 
 # Make the script executable
 chmod +x shai-hulud-detector.sh
@@ -31,6 +32,19 @@ chmod +x shai-hulud-detector.sh
 
 # For comprehensive security scanning
 ./shai-hulud-detector.sh --paranoid /path/to/your/project
+```
+
+### Windows (Batch)
+```batch
+# Clone the repository (required for compromised package list)
+git clone https://github.com/Metyis-Global/shai-hulud-detect.git
+cd shai-hulud-detect
+
+# Scan your project for Shai-Hulud indicators
+shai-hulud-detector.bat C:\path\to\your\project
+
+# For comprehensive security scanning
+shai-hulud-detector.bat --paranoid C:\path\to\your\project
 ```
 
 ## What it Detects
@@ -126,9 +140,15 @@ Check these security advisories regularly for newly discovered compromised packa
 
 ## Requirements
 
+### For Bash Script (Unix/Linux/macOS)
 - macOS or Unix-like system
 - Bash shell
 - Standard Unix tools: `find`, `grep`, `shasum`
+
+### For Batch Script (Windows)
+- Windows 10/11
+- Command Prompt (cmd.exe) or PowerShell
+- Standard Windows tools: `findstr`, `certutil`
 
 ## Output Interpretation
 
@@ -161,8 +181,9 @@ The script will show:
 
 ## Testing
 
-The repository includes test cases to validate the script:
+The repository includes test cases to validate both scripts:
 
+### Bash Testing (Unix/Linux/macOS)
 ```bash
 # Test on clean project (should show no issues)
 ./shai-hulud-detector.sh test-cases/clean-project
@@ -172,6 +193,18 @@ The repository includes test cases to validate the script:
 
 # Test on mixed project (should show medium risk issues)
 ./shai-hulud-detector.sh test-cases/mixed-project
+```
+
+### Batch Testing (Windows)
+```batch
+# Test on clean project (should show no issues)
+shai-hulud-detector.bat test-cases\clean-project
+
+# Test on infected project (should show multiple issues)
+shai-hulud-detector.bat test-cases\infected-project
+
+# Test on mixed project (should show medium risk issues)
+shai-hulud-detector.bat test-cases\mixed-project
 ```
 
 ## How it Works
@@ -305,6 +338,19 @@ If you can't submit a PR, you can still help by reporting new compromised packag
 3. Provide links to security advisories or reports
 4. We'll review and add verified packages to the detection list
 
+## Credits
+
+This project is based on the original [shai-hulud-detect](https://github.com/Cobenian/shai-hulud-detect) repository created by [Cobenian](https://github.com/Cobenian). The original Bash script was developed to detect the Shai-Hulud npm supply chain attack.
+
+### Enhancements by Metyis Global
+- **Windows Batch Script**: Complete Windows-compatible version with equivalent functionality
+- **Cross-Platform Support**: Unified detection capabilities across Unix and Windows systems
+- **Enhanced Paranoid Mode**: Comprehensive typosquatting and network exfiltration detection
+- **Improved Documentation**: Updated usage examples and platform-specific instructions
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**Original Work**: Copyright (c) 2025 Cobenian  
+**Enhancements**: Copyright (c) 2025 Metyis Global
