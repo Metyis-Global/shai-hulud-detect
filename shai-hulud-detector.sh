@@ -93,15 +93,24 @@ NETWORK_EXFILTRATION_WARNINGS=()
 
 # Usage function
 usage() {
-    echo "Usage: $0 [--paranoid] <directory_to_scan>"
+    echo "Usage: $0 [--paranoid] [--full-scan] [directory_to_scan]"
     echo
     echo "OPTIONS:"
     echo "  --paranoid    Enable additional security checks (typosquatting, network patterns)"
     echo "                These are general security features, not specific to Shai-Hulud"
+    echo "  --full-scan   Include cache directories (.cache, node_modules/.cache, etc.) in auto-discovery"
+    echo "                By default, cache directories are excluded for performance"
+    echo
+    echo "ARGUMENTS:"
+    echo "  directory_to_scan    Directory to scan (optional, defaults to auto-discovery from home)"
     echo
     echo "EXAMPLES:"
-    echo "  $0 /path/to/your/project                    # Core Shai-Hulud detection only"
-    echo "  $0 --paranoid /path/to/your/project         # Core + advanced security checks"
+    echo "  $0                                          # Auto-discover and scan all projects from home"
+    echo "  $0 --full-scan                              # Auto-discover including cache directories"
+    echo "  $0 /path/to/your/project                    # Core Shai-Hulud detection on specific directory"
+    echo "  $0 --paranoid                               # Auto-discover with advanced security checks"
+    echo "  $0 --paranoid --full-scan                   # Full scan with advanced security checks"
+    echo "  $0 --paranoid /path/to/your/project         # Core + advanced security checks on specific directory"
     exit 1
 }
 
@@ -110,6 +119,109 @@ print_status() {
     local color=$1
     local message=$2
     echo -e "${color}${message}${NC}"
+}
+
+# Auto-discover project directories from home directory
+discover_project_directories() {
+    local full_scan="${1:-false}"
+    local search_dirs=()
+    local home_dir="$HOME"
+
+    if [[ "$full_scan" == "true" ]]; then
+        print_status "$BLUE" "🔍 Auto-discovering project directories from $home_dir (full scan including cache directories)..." >&2
+    else
+        print_status "$BLUE" "🔍 Auto-discovering project directories from $home_dir (excluding cache directories)..." >&2
+    fi
+
+    # Common project indicators
+    local project_indicators=(
+        "package.json"
+        "package-lock.json"
+        "yarn.lock"
+        "node_modules"
+        ".git"
+        "Cargo.toml"
+        "requirements.txt"
+        "pom.xml"
+        "build.gradle"
+        "composer.json"
+        "Gemfile"
+        "go.mod"
+    )
+
+    # Search for project directories (limit depth to avoid infinite recursion)
+    local discovered_dirs=()
+
+    # Build find exclusion criteria for cache directories
+    local find_excludes=()
+    if [[ "$full_scan" != "true" ]]; then
+        find_excludes=(
+            -path "*/.cache" -prune -o
+            -path "*/node_modules/.cache" -prune -o
+            -path "*/.npm" -prune -o
+            -path "*/.yarn" -prune -o
+            -path "*/bower_components" -prune -o
+            -path "*/__pycache__" -prune -o
+            -path "*/venv" -prune -o
+            -path "*/.venv" -prune -o
+            -path "*/target" -prune -o
+            -path "*/build" -prune -o
+            -path "*/dist" -prune -o
+            -path "*/.pyenv" -prune -o
+            -path "*/.nvm" -prune -o
+            -path "*/.oh-my-zsh" -prune -o
+            -path "*/.vscode-server" -prune -o
+        )
+    fi
+
+    for indicator in "${project_indicators[@]}"; do
+        local find_cmd=("find" "$home_dir" -maxdepth 4)
+
+        # Add exclusions if not doing full scan
+        if [[ ${#find_excludes[@]} -gt 0 ]]; then
+            find_cmd+=("${find_excludes[@]}")
+        fi
+
+        find_cmd+=(-name "$indicator" -print0)
+
+        while IFS= read -r -d '' found_path; do
+            local project_dir
+            if [[ -f "$found_path" ]]; then
+                project_dir="$(dirname "$found_path")"
+            else
+                project_dir="$found_path"
+            fi
+
+            # Add to discovered directories if not already present
+            local already_added=false
+            for dir in "${discovered_dirs[@]}"; do
+                if [[ "$dir" == "$project_dir" ]]; then
+                    already_added=true
+                    break
+                fi
+            done
+
+            if [[ "$already_added" == false ]]; then
+                discovered_dirs+=("$project_dir")
+            fi
+        done < <("${find_cmd[@]}" 2>/dev/null | head -n 50)
+    done
+
+    # Remove duplicates and sort
+    readarray -t search_dirs < <(printf '%s\n' "${discovered_dirs[@]}" | sort -u)
+
+    if [[ ${#search_dirs[@]} -eq 0 ]]; then
+        print_status "$YELLOW" "⚠️  No project directories found in $home_dir" >&2
+        print_status "$BLUE" "   Falling back to scanning home directory directly" >&2
+        search_dirs=("$home_dir")
+    else
+        print_status "$GREEN" "✅ Found ${#search_dirs[@]} project directories" >&2
+        for dir in "${search_dirs[@]}"; do
+            echo "   📁 $dir" >&2
+        done
+    fi
+
+    printf '%s\n' "${search_dirs[@]}"
 }
 
 # Show file content preview (simplified for less verbose output)
@@ -1107,6 +1219,7 @@ generate_report() {
 # Main execution
 main() {
     local paranoid_mode=false
+    local full_scan=false
     local scan_dir=""
 
     # Load compromised packages from external file
@@ -1117,6 +1230,10 @@ main() {
         case $1 in
             --paranoid)
                 paranoid_mode=true
+                shift
+                ;;
+            --full-scan)
+                full_scan=true
                 shift
                 ;;
             --help|-h)
@@ -1138,44 +1255,58 @@ main() {
         esac
     done
 
+    local scan_dirs=()
+
     if [[ -z "$scan_dir" ]]; then
-        usage
+        # Auto-discover project directories
+        readarray -t scan_dirs < <(discover_project_directories "$full_scan")
+    else
+        if [[ ! -d "$scan_dir" ]]; then
+            print_status "$RED" "Error: Directory '$scan_dir' does not exist."
+            exit 1
+        fi
+        # Convert to absolute path
+        scan_dir=$(cd "$scan_dir" && pwd)
+        scan_dirs=("$scan_dir")
     fi
-
-    if [[ ! -d "$scan_dir" ]]; then
-        print_status "$RED" "Error: Directory '$scan_dir' does not exist."
-        exit 1
-    fi
-
-    # Convert to absolute path
-    scan_dir=$(cd "$scan_dir" && pwd)
 
     print_status "$GREEN" "Starting Shai-Hulud detection scan..."
     if [[ "$paranoid_mode" == "true" ]]; then
-        print_status "$BLUE" "Scanning directory: $scan_dir (with paranoid mode enabled)"
+        print_status "$BLUE" "Scanning ${#scan_dirs[@]} directories (with paranoid mode enabled)"
     else
-        print_status "$BLUE" "Scanning directory: $scan_dir"
+        print_status "$BLUE" "Scanning ${#scan_dirs[@]} directories"
     fi
     echo
 
-    # Run core Shai-Hulud detection checks
-    check_workflow_files "$scan_dir"
-    check_file_hashes "$scan_dir"
-    check_packages "$scan_dir"
-    check_postinstall_hooks "$scan_dir"
-    check_content "$scan_dir"
-    check_trufflehog_activity "$scan_dir"
-    check_git_branches "$scan_dir"
-    check_shai_hulud_repos "$scan_dir"
-    check_package_integrity "$scan_dir"
+    # Scan each discovered directory
+    for current_dir in "${scan_dirs[@]}"; do
+        # Convert to absolute path
+        current_dir=$(cd "$current_dir" && pwd)
 
-    # Run additional security checks only in paranoid mode
-    if [[ "$paranoid_mode" == "true" ]]; then
-        print_status "$BLUE" "🔍+ Checking for typosquatting and homoglyph attacks..."
-        check_typosquatting "$scan_dir"
-        print_status "$BLUE" "🔍+ Checking for network exfiltration patterns..."
-        check_network_exfiltration "$scan_dir"
-    fi
+        print_status "$GREEN" "📂 Scanning: $current_dir"
+        echo "----------------------------------------"
+
+        # Run core Shai-Hulud detection checks
+        check_workflow_files "$current_dir"
+        check_file_hashes "$current_dir"
+        check_packages "$current_dir"
+        check_postinstall_hooks "$current_dir"
+        check_content "$current_dir"
+        check_trufflehog_activity "$current_dir"
+        check_git_branches "$current_dir"
+        check_shai_hulud_repos "$current_dir"
+        check_package_integrity "$current_dir"
+
+        # Run additional security checks only in paranoid mode
+        if [[ "$paranoid_mode" == "true" ]]; then
+            print_status "$BLUE" "🔍+ Checking for typosquatting and homoglyph attacks..."
+            check_typosquatting "$current_dir"
+            print_status "$BLUE" "🔍+ Checking for network exfiltration patterns..."
+            check_network_exfiltration "$current_dir"
+        fi
+
+        echo
+    done
 
     # Generate report
     generate_report "$paranoid_mode"
