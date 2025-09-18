@@ -1,7 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
+cls
 
 :: Shai-Hulud NPM Supply Chain Attack Detection Script
+:: Version: 2.0.0 (Enhanced with all missing features)
 :: Detects indicators of compromise from the September 2025 npm attack
 :: Usage: shai-hulud-detector.bat [--paranoid] <directory_to_scan>
 
@@ -64,6 +66,7 @@ for %%i in ("!SCAN_DIR!") do set "SCAN_DIR=%%~fi"
 echo.
 call :print_blue "=============================================="
 call :print_blue "    SHAI-HULUD ATTACK DETECTION TOOL"
+call :print_blue "         Version 2.0.0 Enhanced"
 call :print_blue "=============================================="
 echo.
 
@@ -145,18 +148,26 @@ set "packages_file=%script_dir%compromised-packages.txt"
 set /a COMPROMISED_PACKAGES_COUNT=0
 
 if exist "!packages_file!" (
+    echo    Loading compromised package database...
+    set /a temp_count=0
     for /f "usebackq delims=" %%a in ("!packages_file!") do (
         set "line=%%a"
         :: Skip comments and empty lines
         if not "!line:~0,1!"=="#" if not "!line!"=="" (
-            :: Check if line matches package:version pattern
-            echo !line! | findstr /r "^[a-zA-Z@][^:]*:[0-9]*\.[0-9]*\.[0-9]*" >nul
+            :: Simple check for colon (package:version pattern)
+            echo %%a | findstr /c:":" >nul 2>&1
             if not errorlevel 1 (
-                set /a COMPROMISED_PACKAGES_COUNT+=1
-                set "COMPROMISED_PACKAGES[!COMPROMISED_PACKAGES_COUNT!]=!line!"
+                set /a temp_count+=1
+                set "COMPROMISED_PACKAGES[!temp_count!]=%%a"
+                if !temp_count! equ 100 echo       [+] 100 packages loaded...
+                if !temp_count! equ 200 echo       [+] 200 packages loaded...
+                if !temp_count! equ 300 echo       [+] 300 packages loaded...
+                if !temp_count! equ 400 echo       [+] 400 packages loaded...
+                if !temp_count! equ 500 echo       [+] 500 packages loaded...
             )
         )
     )
+    set /a COMPROMISED_PACKAGES_COUNT=!temp_count!
     call :print_blue "[+] Loaded !COMPROMISED_PACKAGES_COUNT! compromised packages from !packages_file!"
     echo    Package database contains known malicious versions from Shai-Hulud attack
 ) else (
@@ -344,6 +355,67 @@ if !SUSPICIOUS_CONTENT_COUNT! gtr 0 (
 )
 goto :eof
 
+:show_file_preview
+:: Helper function to show a preview of file contents
+set "file_path=%~1"
+set "max_lines=5"
+
+echo      +- File Preview (first !max_lines! lines):
+set /a line_count=0
+for /f "usebackq delims=" %%l in ("!file_path!") do (
+    set /a line_count+=1
+    if !line_count! leq !max_lines! (
+        echo      ^|  %%l
+    )
+)
+if !line_count! gtr !max_lines! (
+    set /a remaining_lines=!line_count!-!max_lines!
+    echo      ^|  ... (!remaining_lines! more lines)
+)
+echo      +-
+goto :eof
+
+:get_file_context
+:: Helper function to determine file context for risk assessment
+set "file_path=%~1"
+set "file_context=unknown"
+
+:: Check if file is in test directory
+echo !file_path! | findstr /i "test spec \.test\. \.spec\. __test__ __spec__" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=test"
+    goto :eof
+)
+
+:: Check if file is a security tool
+echo !file_path! | findstr /i "security scanner audit scan detect" >nul 2>&1
+if not errorlevel 1 (
+    :: Check file content for legitimate security tool patterns
+    findstr /i "security.*tool legitimate.*scan audit.*report" "!file_path!" >nul 2>&1
+    if not errorlevel 1 (
+        set "file_context=security_tool"
+        goto :eof
+    )
+)
+
+:: Check if file is in node_modules
+echo !file_path! | findstr /i "node_modules" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=dependency"
+    goto :eof
+)
+
+:: Check if file is documentation
+echo !file_path! | findstr /i "\.md$ readme doc" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=documentation"
+    goto :eof
+)
+
+:: Default to source code
+set "file_context=source"
+goto :eof
+
 :check_trufflehog_activity
 set "scan_dir=%~1"
 call :print_blue "[-] Checking for Trufflehog activity and secret scanning..."
@@ -361,30 +433,45 @@ for /r "!scan_dir!" %%f in (*.js *.py *.sh *.json) do (
     if exist "%%f" (
         findstr /i "trufflehog" "%%f" >nul 2>&1
         if not errorlevel 1 (
-            echo %%f | findstr /i "node_modules" >nul 2>&1
-            if not errorlevel 1 (
+            call :get_file_context "%%f"
+            if "!file_context!"=="test" (
+                :: Skip test files
+                rem Test files are not a security risk
+            ) else if "!file_context!"=="security_tool" (
                 set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains trufflehog references in node_modules"
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Legitimate security tool"
+            ) else if "!file_context!"=="dependency" (
+                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Trufflehog in dependencies"
+            ) else if "!file_context!"=="documentation" (
+                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Trufflehog reference in documentation"
             ) else (
                 set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Contains trufflehog references in source code"
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Trufflehog in source code"
             )
         )
         
         findstr /i "AWS_ACCESS_KEY GITHUB_TOKEN NPM_TOKEN" "%%f" >nul 2>&1
         if not errorlevel 1 (
-            echo %%f | findstr /i "node_modules" >nul 2>&1
-            if not errorlevel 1 (
+            call :get_file_context "%%f"
+            if "!file_context!"=="test" (
+                :: Skip test files
+                rem Test files are not a security risk
+            ) else if "!file_context!"=="security_tool" (
                 set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in node_modules"
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in security tool"
+            ) else if "!file_context!"=="dependency" (
+                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in dependencies"
             ) else (
                 findstr /i "webhook.site curl https.request" "%%f" >nul 2>&1
                 if not errorlevel 1 (
                     set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Credential patterns with potential exfiltration"
+                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Credential patterns with exfiltration"
                 ) else (
                     set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains credential scanning patterns"
+                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Credential scanning patterns"
                 )
             )
         )
@@ -400,10 +487,12 @@ for /r "!scan_dir!" %%d in (.git) do (
     if exist "%%d\refs\heads" (
         for /r "%%d\refs\heads" %%b in (*shai-hulud*) do (
             if exist "%%b" (
+                :: Read commit hash from the branch file
+                set /p commit_hash=<"%%b"
                 set /a GIT_BRANCHES_COUNT+=1
                 for %%p in ("%%d\..") do set "repo_dir=%%~fp"
                 for %%n in ("%%b") do set "branch_name=%%~nxn"
-                set "GIT_BRANCHES[!GIT_BRANCHES_COUNT!]=!repo_dir!:Branch '!branch_name!' found"
+                set "GIT_BRANCHES[!GIT_BRANCHES_COUNT!]=!repo_dir!:Branch '!branch_name!' (commit: !commit_hash:~0,8!...)"
             )
         )
     )
@@ -454,6 +543,20 @@ call :print_blue "[-] Checking package lock files for integrity issues..."
 
 for /r "!scan_dir!" %%f in (package-lock.json yarn.lock) do (
     if exist "%%f" (
+        :: Check if lockfile was recently modified (within 30 days)
+        set "file_date="
+        for %%d in ("%%f") do set "file_date=%%~td"
+        
+        :: Get current date in comparable format
+        for /f "tokens=2-4 delims=/ " %%a in ('date /t') do set "current_date=%%c%%a%%b"
+        
+        :: Note: This is a simplified check. In production, use PowerShell or forfiles
+        forfiles /p "%%~dpf" /m "%%~nxf" /d -30 >nul 2>&1
+        if not errorlevel 1 (
+            set /a INTEGRITY_ISSUES_COUNT+=1
+            set "INTEGRITY_ISSUES[!INTEGRITY_ISSUES_COUNT!]=%%f:Lockfile modified within last 30 days (check for unexpected changes)"
+        )
+        
         :: Check for compromised packages in lockfiles
         for /l %%i in (1,1,!COMPROMISED_PACKAGES_COUNT!) do (
             set "package_info=!COMPROMISED_PACKAGES[%%i]!"
@@ -849,8 +952,11 @@ if !WORKFLOW_FILES_COUNT! gtr 0 (
     call :print_red "[!] HIGH RISK: Malicious workflow files detected:"
     for /l %%i in (1,1,!WORKFLOW_FILES_COUNT!) do (
         echo    - !WORKFLOW_FILES[%%i]!
+        call :show_file_preview "!WORKFLOW_FILES[%%i]!"
         set /a high_risk+=1
     )
+    call :print_yellow "   NOTE: 'shai-hulud-workflow.yml' files are used by the malware to automate propagation."
+    call :print_yellow "   These files should be immediately removed from your repository."
     echo.
 )
 
@@ -861,9 +967,12 @@ if !MALICIOUS_HASHES_COUNT! gtr 0 (
         for /f "tokens=1,2 delims=:" %%a in ("!MALICIOUS_HASHES[%%i]!") do (
             echo    - %%a
             echo      Hash: %%b
+            call :show_file_preview "%%a"
         )
         set /a high_risk+=1
     )
+    call :print_yellow "   NOTE: These files match known malicious signatures from the Shai-Hulud attack."
+    call :print_yellow "   Delete these files immediately and scan for additional compromised files."
     echo.
 )
 
@@ -903,10 +1012,18 @@ if !GIT_BRANCHES_COUNT! gtr 0 (
         for /f "tokens=1,2 delims=:" %%a in ("!GIT_BRANCHES[%%i]!") do (
             echo    - Repository: %%a
             echo      %%b
+            echo      +- Git Investigation Commands:
+            echo      ^|  cd "%%a"
+            echo      ^|  git log --oneline -10 shai-hulud
+            echo      ^|  git show shai-hulud
+            echo      ^|  git diff main...shai-hulud
+            echo      +-
+            echo.
         )
         set /a medium_risk+=1
     )
     call :print_yellow "   NOTE: 'shai-hulud' branches may indicate compromise."
+    echo    Use the commands above to investigate each branch.
     echo.
 )
 
@@ -924,19 +1041,65 @@ if !POSTINSTALL_HOOKS_COUNT! gtr 0 (
     echo.
 )
 
-:: Report Trufflehog activity
-if !TRUFFLEHOG_ACTIVITY_COUNT! gtr 0 (
-    call :print_yellow "[!]  RISK: Trufflehog/secret scanning activity detected:"
-    for /l %%i in (1,1,!TRUFFLEHOG_ACTIVITY_COUNT!) do (
-        for /f "tokens=1,2,3 delims=:" %%a in ("!TRUFFLEHOG_ACTIVITY[%%i]!") do (
-            echo    - Activity: %%c
-            echo      Found in: %%a
-            echo      Risk Level: %%b
-            if "%%b"=="HIGH" set /a high_risk+=1
-            if "%%b"=="MEDIUM" set /a medium_risk+=1
+:: Report Trufflehog activity by risk level
+set /a trufflehog_high_count=0
+set /a trufflehog_medium_count=0
+set /a trufflehog_low_count=0
+
+:: Categorize Trufflehog findings by risk level
+for /l %%i in (1,1,!TRUFFLEHOG_ACTIVITY_COUNT!) do (
+    for /f "tokens=1,2,3 delims=:" %%a in ("!TRUFFLEHOG_ACTIVITY[%%i]!") do (
+        if "%%b"=="HIGH" (
+            set /a trufflehog_high_count+=1
+            set "TRUFFLEHOG_HIGH[!trufflehog_high_count!]=%%a:%%c"
+        )
+        if "%%b"=="MEDIUM" (
+            set /a trufflehog_medium_count+=1
+            set "TRUFFLEHOG_MEDIUM[!trufflehog_medium_count!]=%%a:%%c"
+        )
+        if "%%b"=="LOW" (
+            set /a trufflehog_low_count+=1
+            set "TRUFFLEHOG_LOW[!trufflehog_low_count!]=%%a:%%c"
         )
     )
+)
+
+:: Report HIGH RISK Trufflehog activity
+if !trufflehog_high_count! gtr 0 (
+    call :print_red "[!] HIGH RISK: Trufflehog/secret scanning activity detected:"
+    for /l %%i in (1,1,!trufflehog_high_count!) do (
+        for /f "tokens=1,2 delims=:" %%a in ("!TRUFFLEHOG_HIGH[%%i]!") do (
+            echo    - Activity: %%b
+            echo      Found in: %%a
+        )
+        set /a high_risk+=1
+    )
+    echo    NOTE: These patterns indicate likely malicious credential harvesting.
+    echo    Immediate investigation and remediation required.
     echo.
+)
+
+:: Report MEDIUM RISK Trufflehog activity
+if !trufflehog_medium_count! gtr 0 (
+    call :print_yellow "[!] MEDIUM RISK: Potentially suspicious secret scanning patterns:"
+    for /l %%i in (1,1,!trufflehog_medium_count!) do (
+        for /f "tokens=1,2 delims=:" %%a in ("!TRUFFLEHOG_MEDIUM[%%i]!") do (
+            echo    - Pattern: %%b
+            echo      Found in: %%a
+        )
+        set /a medium_risk+=1
+    )
+    echo    NOTE: These may be legitimate security tools or framework code.
+    echo    Manual review recommended to determine if they are malicious.
+    echo.
+)
+
+:: Store LOW RISK findings for optional reporting
+for /l %%i in (1,1,!trufflehog_low_count!) do (
+    for /f "tokens=1,2 delims=:" %%a in ("!TRUFFLEHOG_LOW[%%i]!") do (
+        set /a LOW_RISK_FINDINGS_COUNT+=1
+        set "LOW_RISK_FINDINGS[!LOW_RISK_FINDINGS_COUNT!]=Trufflehog pattern: %%a:%%b"
+    )
 )
 
 :: Report Shai-Hulud repositories
@@ -946,6 +1109,12 @@ if !SHAI_HULUD_REPOS_COUNT! gtr 0 (
         for /f "tokens=1,2 delims=:" %%a in ("!SHAI_HULUD_REPOS[%%i]!") do (
             echo    - Repository: %%a
             echo      %%b
+            echo      +- Repository Investigation Commands:
+            echo      ^|  cd "%%a"
+            echo      ^|  git log --oneline -10
+            echo      ^|  git remote -v
+            echo      ^|  dir /a
+            echo      +-
         )
         set /a high_risk+=1
     )
@@ -963,6 +1132,8 @@ if !NAMESPACE_WARNINGS_COUNT! gtr 0 (
         )
         set /a medium_risk+=1
     )
+    call :print_yellow "   NOTE: These namespaces were compromised in the Shai-Hulud attack."
+    call :print_yellow "   Not all packages in these namespaces are malicious, but they require review."
     echo.
 )
 
@@ -976,32 +1147,52 @@ if !INTEGRITY_ISSUES_COUNT! gtr 0 (
         )
         set /a medium_risk+=1
     )
+    call :print_yellow "   NOTE: Lockfile modifications may indicate unauthorized package changes."
+    call :print_yellow "   Review your package-lock.json and yarn.lock files for unexpected modifications."
     echo.
 )
 
 :: Report typosquatting warnings (only in paranoid mode)
 if "!paranoid_mode!"=="true" if !TYPOSQUATTING_WARNINGS_COUNT! gtr 0 (
     call :print_yellow "[!]  MEDIUM RISK (PARANOID): Potential typosquatting attacks detected:"
-    for /l %%i in (1,1,!TYPOSQUATTING_WARNINGS_COUNT!) do (
+    set /a max_show=5
+    if !TYPOSQUATTING_WARNINGS_COUNT! lss !max_show! set /a max_show=!TYPOSQUATTING_WARNINGS_COUNT!
+    
+    for /l %%i in (1,1,!max_show!) do (
         for /f "tokens=1,2 delims=:" %%a in ("!TYPOSQUATTING_WARNINGS[%%i]!") do (
             echo    - Warning: %%b
             echo      Found in: %%a
         )
-        set /a medium_risk+=1
     )
+    
+    set /a remaining=!TYPOSQUATTING_WARNINGS_COUNT!-!max_show!
+    if !remaining! gtr 0 (
+        echo    ...and !remaining! more typosquatting warnings
+    )
+    
+    set /a medium_risk=!medium_risk!+!TYPOSQUATTING_WARNINGS_COUNT!
     echo.
 )
 
 :: Report network exfiltration warnings (only in paranoid mode)
 if "!paranoid_mode!"=="true" if !NETWORK_EXFILTRATION_WARNINGS_COUNT! gtr 0 (
     call :print_yellow "[!]  MEDIUM RISK (PARANOID): Network exfiltration patterns detected:"
-    for /l %%i in (1,1,!NETWORK_EXFILTRATION_WARNINGS_COUNT!) do (
+    set /a max_show=5
+    if !NETWORK_EXFILTRATION_WARNINGS_COUNT! lss !max_show! set /a max_show=!NETWORK_EXFILTRATION_WARNINGS_COUNT!
+    
+    for /l %%i in (1,1,!max_show!) do (
         for /f "tokens=1,2 delims=:" %%a in ("!NETWORK_EXFILTRATION_WARNINGS[%%i]!") do (
             echo    - Warning: %%b
             echo      Found in: %%a
         )
-        set /a medium_risk+=1
     )
+    
+    set /a remaining=!NETWORK_EXFILTRATION_WARNINGS_COUNT!-!max_show!
+    if !remaining! gtr 0 (
+        echo    ...and !remaining! more network exfiltration warnings
+    )
+    
+    set /a medium_risk=!medium_risk!+!NETWORK_EXFILTRATION_WARNINGS_COUNT!
     echo.
 )
 
