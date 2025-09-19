@@ -180,30 +180,26 @@ if exist "!packages_file!" (
                     set /a valid_entries+=1
                     set "COMPROMISED_PACKAGES[!valid_entries!]=!line!"
                     
-                    :: Show progress every 50 packages for better feedback
-                    set /a mod=!valid_entries!%%50
-                    if !mod! equ 0 (
-                        echo       [+] !valid_entries! valid packages loaded...
-                        echo          Latest: !line!
+                    :: Show progress using progressive intervals like shell script
+                    if !valid_entries! leq 20 (
+                        set /a mod=!valid_entries!%%10
+                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
+                    ) else if !valid_entries! leq 100 (
+                        set /a mod=!valid_entries!%%20
+                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
+                    ) else if !valid_entries! leq 500 (
+                        set /a mod=!valid_entries!%%50
+                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
+                    ) else (
+                        set /a mod=!valid_entries!%%100
+                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
                     )
-                ) else (
-                    :: Log invalid format for debugging
-                    echo       [!] Skipping invalid format: !line!
                 )
-            ) else (
-                echo       [!] Skipping line without colon: !line!
-            )
         )
     )
     
     set /a COMPROMISED_PACKAGES_COUNT=!valid_entries!
-    call :print_blue "[+] Package database analysis complete:"
-    echo    - Total lines processed: !temp_count!
-    echo    - Valid compromised packages: !COMPROMISED_PACKAGES_COUNT!
-    echo    - Skipped comments: !skipped_comments!
-    echo    - Skipped empty lines: !skipped_empty!
-    echo    - Database source: !packages_file!
-    echo    - Contains known malicious versions from multiple September 2025 attacks
+    call :print_blue "[+] Loaded !COMPROMISED_PACKAGES_COUNT! compromised packages from compromised-packages.txt"
 ) else (
     call :print_yellow "[!]  Warning: !packages_file! not found, using embedded package list"
     :: Fallback to embedded list
