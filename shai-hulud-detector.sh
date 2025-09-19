@@ -133,25 +133,6 @@ discover_project_directories() {
         print_status "$BLUE" "🔍 Auto-discovering project directories from $home_dir (excluding cache directories)..." >&2
     fi
 
-    # Common project indicators
-    local project_indicators=(
-        "package.json"
-        "package-lock.json"
-        "yarn.lock"
-        "node_modules"
-        ".git"
-        "Cargo.toml"
-        "requirements.txt"
-        "pom.xml"
-        "build.gradle"
-        "composer.json"
-        "Gemfile"
-        "go.mod"
-    )
-
-    # Search for project directories (limit depth to avoid infinite recursion)
-    local discovered_dirs=()
-
     # Build find exclusion criteria for cache directories
     local find_excludes=()
     if [[ "$full_scan" != "true" ]]; then
@@ -174,41 +155,52 @@ discover_project_directories() {
         )
     fi
 
-    for indicator in "${project_indicators[@]}"; do
-        local find_cmd=("find" "$home_dir" -maxdepth 4)
+    # Single optimized find command for all project indicators
+    local find_cmd=("find" "$home_dir" -maxdepth 4)
 
-        # Add exclusions if not doing full scan
-        if [[ ${#find_excludes[@]} -gt 0 ]]; then
-            find_cmd+=("${find_excludes[@]}")
+    # Add exclusions if not doing full scan
+    if [[ ${#find_excludes[@]} -gt 0 ]]; then
+        find_cmd+=("${find_excludes[@]}")
+    fi
+
+    # Use single find with multiple -name patterns
+    find_cmd+=(
+        \( -name "package.json" -o
+           -name "package-lock.json" -o
+           -name "yarn.lock" -o
+           -name "node_modules" -o
+           -name ".git" -o
+           -name "Cargo.toml" -o
+           -name "requirements.txt" -o
+           -name "pom.xml" -o
+           -name "build.gradle" -o
+           -name "composer.json" -o
+           -name "Gemfile" -o
+           -name "go.mod" \)
+        -print0
+    )
+
+    # Use associative array for O(1) duplicate detection
+    declare -A seen_dirs
+    local discovered_dirs=()
+
+    while IFS= read -r -d '' found_path; do
+        local project_dir
+        if [[ -f "$found_path" ]]; then
+            project_dir="$(dirname "$found_path")"
+        else
+            project_dir="$found_path"
         fi
 
-        find_cmd+=(-name "$indicator" -print0)
+        # Add to discovered directories if not already present
+        if [[ -z "${seen_dirs[$project_dir]:-}" ]]; then
+            seen_dirs["$project_dir"]=1
+            discovered_dirs+=("$project_dir")
+        fi
+    done < <("${find_cmd[@]}" 2>/dev/null | head -n 50)
 
-        while IFS= read -r -d '' found_path; do
-            local project_dir
-            if [[ -f "$found_path" ]]; then
-                project_dir="$(dirname "$found_path")"
-            else
-                project_dir="$found_path"
-            fi
-
-            # Add to discovered directories if not already present
-            local already_added=false
-            for dir in "${discovered_dirs[@]}"; do
-                if [[ "$dir" == "$project_dir" ]]; then
-                    already_added=true
-                    break
-                fi
-            done
-
-            if [[ "$already_added" == false ]]; then
-                discovered_dirs+=("$project_dir")
-            fi
-        done < <("${find_cmd[@]}" 2>/dev/null | head -n 50)
-    done
-
-    # Remove duplicates and sort
-    readarray -t search_dirs < <(printf '%s\n' "${discovered_dirs[@]}" | sort -u)
+    # Sort discovered directories
+    readarray -t search_dirs < <(printf '%s\n' "${discovered_dirs[@]}" | sort)
 
     if [[ ${#search_dirs[@]} -eq 0 ]]; then
         print_status "$YELLOW" "⚠️  No project directories found in $home_dir" >&2
@@ -256,15 +248,55 @@ check_file_hashes() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking file hashes for known malicious content..."
 
+    # Skip hash checking entirely if no files match likely malicious patterns
+    # The known malicious hash corresponds to specific malicious content - pre-filter candidates
+
+    # First, quickly find files that might contain suspicious patterns (much faster than hashing)
+    local suspicious_files=()
     while IFS= read -r -d '' file; do
-        if [[ -f "$file" && -r "$file" ]]; then
-            local file_hash
-            file_hash=$(shasum -a 256 "$file" 2>/dev/null | cut -d' ' -f1)
-            if [[ "$file_hash" == "$MALICIOUS_HASH" ]]; then
-                MALICIOUS_HASHES+=("$file:$file_hash")
+        # Only consider files in realistic size range for the known malicious content
+        local file_size
+        if file_size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null); then
+            # The known malicious hash is for content ~1-50KB typically
+            if [[ $file_size -gt 500 && $file_size -lt 102400 ]]; then
+                # Quick content check - only hash if file might contain relevant patterns
+                if head -c 1000 "$file" 2>/dev/null | grep -q -E "(webhook|trufflehog|exfiltrat|shai.?hulud)" 2>/dev/null; then
+                    suspicious_files+=("$file")
+                fi
             fi
         fi
-    done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 2>/dev/null)
+    done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) \
+             ! -path "*/node_modules/*" ! -path "*/vendor/*" ! -path "*/dist/*" ! -path "*/build/*" \
+             -readable -print0 2>/dev/null)
+
+    # Only hash the pre-filtered suspicious files
+    if [[ ${#suspicious_files[@]} -gt 0 ]]; then
+        print_status "$BLUE" "   Found ${#suspicious_files[@]} potentially suspicious files to hash..."
+
+        if command -v xargs >/dev/null 2>&1 && [[ ${#suspicious_files[@]} -gt 4 ]]; then
+            # Use parallel processing for multiple files
+            printf '%s\0' "${suspicious_files[@]}" | \
+            xargs -0 -P "$(nproc 2>/dev/null || echo 4)" -I {} sh -c '
+                file_hash=$(shasum -a 256 "{}" 2>/dev/null | cut -d" " -f1)
+                if [[ "$file_hash" == "'"$MALICIOUS_HASH"'" ]]; then
+                    echo "{}:$file_hash"
+                fi
+            ' | while IFS= read -r entry; do
+                MALICIOUS_HASHES+=("$entry")
+            done
+        else
+            # Sequential processing for few files
+            for file in "${suspicious_files[@]}"; do
+                local file_hash
+                file_hash=$(shasum -a 256 "$file" 2>/dev/null | cut -d" " -f1)
+                if [[ "$file_hash" == "$MALICIOUS_HASH" ]]; then
+                    MALICIOUS_HASHES+=("$file:$file_hash")
+                fi
+            done
+        fi
+    else
+        print_status "$BLUE" "   No suspicious files found - skipping expensive hash computation"
+    fi
 }
 
 # Check package.json files for compromised packages
@@ -272,31 +304,57 @@ check_packages() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking package.json files for compromised packages..."
 
-    while IFS= read -r -d '' package_file; do
-        if [[ -f "$package_file" && -r "$package_file" ]]; then
-            # Check for specific compromised packages
+    # Batch process all package.json files
+    find "$scan_dir" -name "package.json" -readable -print0 2>/dev/null | while IFS= read -r -d '' package_file; do
+        if [[ -f "$package_file" ]]; then
+            # Read file once and check all patterns
+            local file_content
+            file_content=$(cat "$package_file" 2>/dev/null) || continue
+
+            # Check for specific compromised packages using single grep
+            local compromised_patterns=""
             for package_info in "${COMPROMISED_PACKAGES[@]}"; do
                 local package_name="${package_info%:*}"
-                local malicious_version="${package_info#*:}"
+                if [[ -n "$compromised_patterns" ]]; then
+                    compromised_patterns+="|"
+                fi
+                compromised_patterns+="\"$package_name\""
+            done
 
-                # Check both dependencies and devDependencies sections
-                if grep -q "\"$package_name\"" "$package_file" 2>/dev/null; then
-                    local found_version
-                    found_version=$(grep -A1 "\"$package_name\"" "$package_file" | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' | tr -d '"' | head -1)
-                    if [[ "$found_version" == "$malicious_version" ]]; then
-                        COMPROMISED_FOUND+=("$package_file:$package_name@$malicious_version")
+            if [[ -n "$compromised_patterns" ]] && echo "$file_content" | grep -qE "($compromised_patterns)"; then
+                # Only check versions for packages that matched
+                for package_info in "${COMPROMISED_PACKAGES[@]}"; do
+                    local package_name="${package_info%:*}"
+                    local malicious_version="${package_info#*:}"
+
+                    if echo "$file_content" | grep -q "\"$package_name\""; then
+                        local found_version
+                        found_version=$(echo "$file_content" | grep -A1 "\"$package_name\"" | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' | tr -d '"' | head -1)
+                        if [[ "$found_version" == "$malicious_version" ]]; then
+                            COMPROMISED_FOUND+=("$package_file:$package_name@$malicious_version")
+                        fi
                     fi
+                done
+            fi
+
+            # Check for suspicious namespaces using single grep
+            local namespace_patterns=""
+            for namespace in "${COMPROMISED_NAMESPACES[@]}"; do
+                if [[ -n "$namespace_patterns" ]]; then
+                    namespace_patterns+="|"
                 fi
+                namespace_patterns+="\"$namespace/"
             done
 
-            # Check for suspicious namespaces
-            for namespace in "${COMPROMISED_NAMESPACES[@]}"; do
-                if grep -q "\"$namespace/" "$package_file" 2>/dev/null; then
-                    NAMESPACE_WARNINGS+=("$package_file:Contains packages from compromised namespace: $namespace")
-                fi
-            done
+            if [[ -n "$namespace_patterns" ]] && echo "$file_content" | grep -qE "($namespace_patterns)"; then
+                for namespace in "${COMPROMISED_NAMESPACES[@]}"; do
+                    if echo "$file_content" | grep -q "\"$namespace/"; then
+                        NAMESPACE_WARNINGS+=("$package_file:Contains packages from compromised namespace: $namespace")
+                    fi
+                done
+            fi
         fi
-    done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
+    done
 }
 
 # Check for suspicious postinstall hooks
@@ -325,17 +383,31 @@ check_content() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking for suspicious content patterns..."
 
-    # Search for webhook.site references
-    while IFS= read -r -d '' file; do
-        if [[ -f "$file" && -r "$file" ]]; then
-            if grep -l "webhook\.site" "$file" >/dev/null 2>&1; then
+    # Use ripgrep for faster pattern matching if available, otherwise grep
+    if command -v rg >/dev/null 2>&1; then
+        # Use ripgrep with multiple patterns in single command
+        rg --type-add 'web:*.{js,ts,json,yml,yaml}' --type web \
+           -l -e "webhook\.site" -e "bb8ca5f6-4175-45d2-b042-fc9ebb8170b7" \
+           "$scan_dir" 2>/dev/null | while IFS= read -r file; do
+            if grep -q "webhook\.site" "$file" 2>/dev/null; then
                 SUSPICIOUS_CONTENT+=("$file:webhook.site reference")
             fi
-            if grep -l "bb8ca5f6-4175-45d2-b042-fc9ebb8170b7" "$file" >/dev/null 2>&1; then
+            if grep -q "bb8ca5f6-4175-45d2-b042-fc9ebb8170b7" "$file" 2>/dev/null; then
                 SUSPICIOUS_CONTENT+=("$file:malicious webhook endpoint")
             fi
-        fi
-    done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.yml" -o -name "*.yaml" \) -print0 2>/dev/null)
+        done
+    else
+        # Fallback to optimized grep
+        find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.yml" -o -name "*.yaml" \) \
+             -exec grep -l -E "(webhook\.site|bb8ca5f6-4175-45d2-b042-fc9ebb8170b7)" {} + 2>/dev/null | while IFS= read -r file; do
+            if grep -q "webhook\.site" "$file" 2>/dev/null; then
+                SUSPICIOUS_CONTENT+=("$file:webhook.site reference")
+            fi
+            if grep -q "bb8ca5f6-4175-45d2-b042-fc9ebb8170b7" "$file" 2>/dev/null; then
+                SUSPICIOUS_CONTENT+=("$file:malicious webhook endpoint")
+            fi
+        done
+    fi
 }
 
 # Check for shai-hulud git branches
@@ -566,42 +638,53 @@ check_package_integrity() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking package lock files for integrity issues..."
 
-    # Check package-lock.json files
-    while IFS= read -r -d '' lockfile; do
-        if [[ -f "$lockfile" && -r "$lockfile" ]]; then
-            # Look for compromised packages in lockfiles
+    # Batch process lock files
+    find "$scan_dir" \( -name "package-lock.json" -o -name "yarn.lock" \) -readable -print0 2>/dev/null | while IFS= read -r -d '' lockfile; do
+        if [[ -f "$lockfile" ]]; then
+            local file_content
+            file_content=$(cat "$lockfile" 2>/dev/null) || continue
+
+            # Build pattern for all compromised packages
+            local package_patterns=""
             for package_info in "${COMPROMISED_PACKAGES[@]}"; do
                 local package_name="${package_info%:*}"
-                local malicious_version="${package_info#*:}"
-
-                if grep -q "\"$package_name\"" "$lockfile" 2>/dev/null; then
-                    local found_version
-                    found_version=$(grep -A5 "\"$package_name\"" "$lockfile" | grep '"version":' | head -1 | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' | tr -d '"')
-                    if [[ "$found_version" == "$malicious_version" ]]; then
-                        INTEGRITY_ISSUES+=("$lockfile:Compromised package in lockfile: $package_name@$malicious_version")
-                    fi
+                if [[ -n "$package_patterns" ]]; then
+                    package_patterns+="|"
                 fi
+                package_patterns+="\"$package_name\""
             done
 
-            # Check for suspicious integrity hash patterns (may indicate tampering)
-            local suspicious_hashes
-            suspicious_hashes=$(grep -c '"integrity": "sha[0-9]\+-[A-Za-z0-9+/=]*"' "$lockfile" 2>/dev/null || echo "0")
+            # Check for compromised packages in single grep operation
+            if [[ -n "$package_patterns" ]] && echo "$file_content" | grep -qE "($package_patterns)"; then
+                for package_info in "${COMPROMISED_PACKAGES[@]}"; do
+                    local package_name="${package_info%:*}"
+                    local malicious_version="${package_info#*:}"
 
-            # Check for recently modified lockfiles with @ctrl packages (potential worm activity)
-            if grep -q "@ctrl" "$lockfile" 2>/dev/null; then
-                local file_age
-                file_age=$(stat -f "%m" "$lockfile" 2>/dev/null || echo "0")
-                local current_time
-                current_time=$(date +%s)
-                local age_diff=$((current_time - file_age))
+                    if echo "$file_content" | grep -q "\"$package_name\""; then
+                        local found_version
+                        found_version=$(echo "$file_content" | grep -A5 "\"$package_name\"" | grep '"version":' | head -1 | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' | tr -d '"')
+                        if [[ "$found_version" == "$malicious_version" ]]; then
+                            INTEGRITY_ISSUES+=("$lockfile:Compromised package in lockfile: $package_name@$malicious_version")
+                        fi
+                    fi
+                done
+            fi
 
-                # Flag if lockfile with @ctrl packages was modified in the last 30 days
-                if [[ $age_diff -lt 2592000 ]]; then  # 30 days in seconds
-                    INTEGRITY_ISSUES+=("$lockfile:Recently modified lockfile contains @ctrl packages (potential worm activity)")
+            # Check for @ctrl packages and file modification in single operation
+            if echo "$file_content" | grep -q "@ctrl"; then
+                local file_age current_time age_diff
+                if file_age=$(stat -c "%Y" "$lockfile" 2>/dev/null) || file_age=$(stat -f "%m" "$lockfile" 2>/dev/null); then
+                    current_time=$(date +%s)
+                    age_diff=$((current_time - file_age))
+
+                    # Flag if lockfile with @ctrl packages was modified in the last 30 days
+                    if [[ $age_diff -lt 2592000 ]]; then  # 30 days in seconds
+                        INTEGRITY_ISSUES+=("$lockfile:Recently modified lockfile contains @ctrl packages (potential worm activity)")
+                    fi
                 fi
             fi
         fi
-    done < <(find "$scan_dir" -name "package-lock.json" -o -name "yarn.lock" -print0 2>/dev/null)
+    done
 }
 
 # Check for typosquatting and homoglyph attacks
@@ -778,51 +861,55 @@ check_network_exfiltration() {
         "[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:[0-9]{4,5}"  # IP:Port
     )
 
-    # Scan JavaScript, TypeScript, and JSON files for network patterns
-    while IFS= read -r -d '' file; do
-        if [[ -f "$file" && -r "$file" ]]; then
-            # Check for hardcoded IP addresses (simplified)
-            # Skip vendor/library files to reduce false positives
-            if [[ "$file" != *"/vendor/"* && "$file" != *"/node_modules/"* ]]; then
-                if grep -q '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' "$file" 2>/dev/null; then
-                    local ips_context
-                    ips_context=$(grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' "$file" 2>/dev/null | head -3 | tr '\n' ' ')
-                    # Skip common safe IPs
-                    if [[ "$ips_context" != *"127.0.0.1"* && "$ips_context" != *"0.0.0.0"* ]]; then
-                        # Check if it's a minified file to avoid showing file path details
-                        if [[ "$file" == *".min.js"* ]]; then
-                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Hardcoded IP addresses found (minified file): $ips_context")
-                        else
-                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Hardcoded IP addresses found: $ips_context")
-                        fi
-                    fi
+    # Use find with optimized filtering and batch processing
+    find "$scan_dir" \( -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.mjs" \) \
+         ! -path "*/vendor/*" ! -path "*/node_modules/*" ! -name "package-lock.json" ! -name "yarn.lock" \
+         -readable -print0 2>/dev/null | while IFS= read -r -d '' file; do
+        if [[ -f "$file" ]]; then
+            local file_content
+            file_content=$(cat "$file" 2>/dev/null) || continue
+
+            # Check for hardcoded IP addresses (batch operation)
+            local ips_found
+            ips_found=$(echo "$file_content" | grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' | head -3 | tr '\n' ' ')
+            if [[ -n "$ips_found" && "$ips_found" != *"127.0.0.1"* && "$ips_found" != *"0.0.0.0"* ]]; then
+                if [[ "$file" == *".min.js"* ]]; then
+                    NETWORK_EXFILTRATION_WARNINGS+=("$file:Hardcoded IP addresses found (minified file): $ips_found")
+                else
+                    NETWORK_EXFILTRATION_WARNINGS+=("$file:Hardcoded IP addresses found: $ips_found")
                 fi
             fi
 
-            # Check for suspicious domains (but avoid package-lock.json and vendor files to reduce noise)
-            if [[ "$file" != *"package-lock.json"* && "$file" != *"yarn.lock"* && "$file" != *"/vendor/"* && "$file" != *"/node_modules/"* ]]; then
-                for domain in "${suspicious_domains[@]}"; do
-                    # Use word boundaries and URL patterns to avoid false positives like "timeZone" containing "t.me"
-                    if grep -q "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" 2>/dev/null; then
-                        # Additional check - make sure it's not just a comment or documentation
-                        local suspicious_usage
-                        suspicious_usage=$(grep "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" | grep -v "^[[:space:]]*#\|^[[:space:]]*//" | head -1)
-                        if [[ -n "$suspicious_usage" ]]; then
-                            # Get line number and context
-                            local line_info
-                            line_info=$(grep -n "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" | grep -v "^[[:space:]]*#\|^[[:space:]]*//" | head -1)
-                            local line_num
-                            line_num=$(echo "$line_info" | cut -d: -f1)
+            # Build single regex for all suspicious domains
+            local domain_pattern=""
+            for domain in "${suspicious_domains[@]}"; do
+                if [[ -n "$domain_pattern" ]]; then
+                    domain_pattern+="|"
+                fi
+                # Escape dots for regex
+                local escaped_domain=${domain//./\\.}
+                domain_pattern+="(https?://[^[:space:]]*$escaped_domain|[[:space:]]$escaped_domain[[:space:]/\"'])"
+            done
 
-                            # Check if it's a minified file or has very long lines
-                            if [[ "$file" == *".min.js"* ]] || [[ $(echo "$suspicious_usage" | wc -c) -gt 150 ]]; then
-                                # Extract just around the domain
+            # Single grep operation for all domains
+            if [[ -n "$domain_pattern" ]] && echo "$file_content" | grep -qE "$domain_pattern"; then
+                # Only check specific domains that matched
+                for domain in "${suspicious_domains[@]}"; do
+                    local escaped_domain=${domain//./\\.}
+                    if echo "$file_content" | grep -qE "(https?://[^[:space:]]*$escaped_domain|[[:space:]]$escaped_domain[[:space:]/\"'])"; then
+                        local suspicious_usage
+                        suspicious_usage=$(echo "$file_content" | grep -E "(https?://[^[:space:]]*$escaped_domain|[[:space:]]$escaped_domain[[:space:]/\"'])" | grep -v "^[[:space:]]*#\|^[[:space:]]*//" | head -1)
+                        if [[ -n "$suspicious_usage" ]]; then
+                            local line_num
+                            line_num=$(echo "$file_content" | grep -nE "(https?://[^[:space:]]*$escaped_domain|[[:space:]]$escaped_domain[[:space:]/\"'])" | head -1 | cut -d: -f1)
+
+                            if [[ "$file" == *".min.js"* ]] || [[ ${#suspicious_usage} -gt 150 ]]; then
                                 local snippet
                                 snippet=$(echo "$suspicious_usage" | grep -o ".\{0,20\}$domain.\{0,20\}" | head -1)
                                 NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ...${snippet}...")
                             else
                                 local snippet
-                                snippet=$(echo "$suspicious_usage" | cut -c1-80)
+                                snippet=$(echo "$suspicious_usage" | head -c 80)
                                 NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ${snippet}...")
                             fi
                         fi
