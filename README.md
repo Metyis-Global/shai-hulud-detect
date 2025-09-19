@@ -1,7 +1,7 @@
 # Shai-Hulud NPM Supply Chain Attack Detector
 
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Shell](https://img.shields.io/badge/shell-Bash-blue)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](#requirements)
 [![Status](https://img.shields.io/badge/status-Active-success)](../../)
 [![Contributions](https://img.shields.io/badge/contributions-Welcome-orange)](CONTRIBUTING.md)
 [![Last Commit](https://img.shields.io/github/last-commit/Cobenian/shai-hulud-detect)](https://github.com/Cobenian/shai-hulud-detect/commits/main)
@@ -10,7 +10,7 @@
 
 <img src="shai_hulu_detector.jpg" alt="sshd" width="80%" />
 
-A bash script to detect indicators of compromise from the September 2025 npm supply chain attacks, including the Shai-Hulud self-replicating worm and the chalk/debug crypto theft attack. This comprehensive detector covers 571+ compromised package versions across multiple attack campaigns, providing protection against the most severe JavaScript supply chain attacks to date.
+Cross-platform detection tools (Bash + Windows Batch) to detect indicators of compromise from the September 2025 npm supply chain attacks, including the Shai-Hulud self-replicating worm and the chalk/debug crypto theft attack. This comprehensive detector covers 571+ compromised package versions across multiple attack campaigns, providing protection against the most severe JavaScript supply chain attacks to date.
 
 ## Overview
 
@@ -34,6 +34,8 @@ The script detects indicators from both attacks to provide comprehensive protect
 
 ## Quick Start
 
+### Linux/macOS (Bash)
+
 ```bash
 # Clone the repository (required for compromised package list)
 git clone https://github.com/username/shai-hulud-detector.git
@@ -47,6 +49,20 @@ chmod +x shai-hulud-detector.sh
 
 # For comprehensive security scanning
 ./shai-hulud-detector.sh --paranoid /path/to/your/project
+```
+
+### Windows (Batch)
+
+```cmd
+# Clone the repository (required for compromised package list)
+git clone https://github.com/username/shai-hulud-detector.git
+cd shai-hulud-detector
+
+# Scan your project for Shai-Hulud indicators
+shai-hulud-detector.bat C:\path\to\your\project
+
+# For comprehensive security scanning  
+shai-hulud-detector.bat C:\path\to\your\project --paranoid
 ```
 
 ## What it Detects
@@ -120,6 +136,7 @@ Check these security advisories regularly for newly discovered compromised packa
 
 ## Latest Updates
 
+- **2025-09-19 v3.0.0**: **Windows Batch Script Support** - Added complete Windows Batch script (`shai-hulud-detector.bat`) with optimized temp file handling and full feature parity with Bash version. Cross-platform detection now available for Windows, macOS, and Linux
 - **2025-09-18 v2.0.0**: **Multi-Attack Coverage** - Added 26 packages from Chalk/Debug crypto theft attack (571+ total). Now covers cryptocurrency wallet replacement patterns, XMLHttpRequest hijacking, and malicious function detection. Added JFrog and Aikido blog references as primary sources
 - **2025-09-17 v1.3.0**: **Complete JFrog integration** - Added 273 additional packages (540+ total) with comprehensive coverage of the complete JFrog 517-package analysis. Added 6 new namespaces: @yoobic, @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, and @ui-ux-gang
 - **2025-09-17 v1.2.0**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
@@ -144,9 +161,15 @@ Check these security advisories regularly for newly discovered compromised packa
 
 ## Requirements
 
+### Linux/macOS (Bash)
 - macOS or Unix-like system
 - Bash shell
 - Standard Unix tools: `find`, `grep`, `shasum`
+
+### Windows (Batch)
+- Windows 10/11 or Windows Server 2016+
+- Command Prompt or PowerShell
+- Standard Windows tools: `dir`, `findstr`, `certutil`
 
 ## Output Interpretation
 
@@ -181,6 +204,7 @@ The script will show:
 
 The repository includes test cases to validate the script:
 
+### Linux/macOS Testing
 ```bash
 # Test on clean project (should show no issues)
 ./shai-hulud-detector.sh test-cases/clean-project
@@ -199,6 +223,27 @@ The repository includes test cases to validate the script:
 
 # Test common crypto libraries (should not trigger HIGH risk false positives)
 ./shai-hulud-detector.sh test-cases/common-crypto-libs
+```
+
+### Windows Testing
+```cmd
+# Test on clean project (should show no issues)
+shai-hulud-detector.bat test-cases\clean-project
+
+# Test on infected project (should show multiple issues)
+shai-hulud-detector.bat test-cases\infected-project
+
+# Test on mixed project (should show medium risk issues)
+shai-hulud-detector.bat test-cases\mixed-project
+
+# Test legitimate crypto libraries (should show MEDIUM risk only)
+shai-hulud-detector.bat test-cases\legitimate-crypto
+
+# Test chalk/debug attack patterns (should show HIGH risk)
+shai-hulud-detector.bat test-cases\chalk-debug-attack
+
+# Test common crypto libraries (should not trigger HIGH risk false positives)
+shai-hulud-detector.bat test-cases\common-crypto-libs
 ```
 
 ## How it Works
