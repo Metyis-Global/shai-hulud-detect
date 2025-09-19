@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2025-09-19
+
+### Added
+- **Missing Socket.dev Packages**: Added 34 additional compromised packages from Socket.dev analysis that were previously missed
+- @ctrl packages: Added 9 additional package versions
+- @nativescript-community packages: Added 8 missing package versions  
+- @rxap packages: Added 2 package versions
+- Standalone packages: Added 15 additional packages
+
+### Changed
+- Updated compromised-packages.txt with comprehensive Socket.dev package list for complete coverage
+- Enhanced package organization with clear section headers for different package groups
+- Improved documentation to reflect complete coverage of all known compromised packages
+
+### Security
+- Ensures detection of all compromised packages identified across multiple security research sources
+- Provides comprehensive protection against packages that may have been missed in previous analyses
+- Complete coverage of Socket.dev's authoritative package analysis
+
 ## [2.2.0] - 2025-09-19
 
 ### Added
