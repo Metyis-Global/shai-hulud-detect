@@ -171,8 +171,8 @@ check_packages() {
                 # Check both dependencies and devDependencies sections
                 if grep -q "\"$package_name\"" "$package_file" 2>/dev/null; then
                     local found_version
-                    found_version=$(grep -A1 "\"$package_name\"" "$package_file" | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' | tr -d '"' | head -1)
-                    if [[ "$found_version" == "$malicious_version" ]]; then
+                    found_version=$(grep -A1 "\"$package_name\"" "$package_file" 2>/dev/null | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' 2>/dev/null | tr -d '"' | head -1 2>/dev/null) || true
+                    if [[ -n "$found_version" && "$found_version" == "$malicious_version" ]]; then
                         COMPROMISED_FOUND+=("$package_file:$package_name@$malicious_version")
                     fi
                 fi
@@ -198,10 +198,10 @@ check_postinstall_hooks() {
             # Look for postinstall scripts
             if grep -q "\"postinstall\"" "$package_file" 2>/dev/null; then
                 local postinstall_cmd
-                postinstall_cmd=$(grep -A1 "\"postinstall\"" "$package_file" | grep -o '"[^"]*"' | tail -1 | tr -d '"')
+                postinstall_cmd=$(grep -A1 "\"postinstall\"" "$package_file" 2>/dev/null | grep -o '"[^"]*"' 2>/dev/null | tail -1 2>/dev/null | tr -d '"' 2>/dev/null) || true
 
                 # Check for suspicious patterns in postinstall commands
-                if [[ "$postinstall_cmd" == *"curl"* ]] || [[ "$postinstall_cmd" == *"wget"* ]] || [[ "$postinstall_cmd" == *"node -e"* ]] || [[ "$postinstall_cmd" == *"eval"* ]]; then
+                if [[ -n "$postinstall_cmd" ]] && ([[ "$postinstall_cmd" == *"curl"* ]] || [[ "$postinstall_cmd" == *"wget"* ]] || [[ "$postinstall_cmd" == *"node -e"* ]] || [[ "$postinstall_cmd" == *"eval"* ]]); then
                     POSTINSTALL_HOOKS+=("$package_file:Suspicious postinstall: $postinstall_cmd")
                 fi
             fi
@@ -510,8 +510,8 @@ check_package_integrity() {
 
                 if grep -q "\"$package_name\"" "$lockfile" 2>/dev/null; then
                     local found_version
-                    found_version=$(grep -A5 "\"$package_name\"" "$lockfile" | grep '"version":' | head -1 | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' | tr -d '"')
-                    if [[ "$found_version" == "$malicious_version" ]]; then
+                    found_version=$(grep -A5 "\"$package_name\"" "$lockfile" 2>/dev/null | grep '"version":' 2>/dev/null | head -1 2>/dev/null | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' 2>/dev/null | tr -d '"' 2>/dev/null) || true
+                    if [[ -n "$found_version" && "$found_version" == "$malicious_version" ]]; then
                         INTEGRITY_ISSUES+=("$lockfile:Compromised package in lockfile: $package_name@$malicious_version")
                     fi
                 fi
@@ -740,24 +740,32 @@ check_network_exfiltration() {
                     if grep -q "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" 2>/dev/null; then
                         # Additional check - make sure it's not just a comment or documentation
                         local suspicious_usage
-                        suspicious_usage=$(grep "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" | grep -v "^[[:space:]]*#\|^[[:space:]]*//" | head -1)
+                        suspicious_usage=$(grep "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" 2>/dev/null | grep -v "^[[:space:]]*#\|^[[:space:]]*//" 2>/dev/null | head -1 2>/dev/null) || true
                         if [[ -n "$suspicious_usage" ]]; then
                             # Get line number and context
                             local line_info
-                            line_info=$(grep -n "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" | grep -v "^[[:space:]]*#\|^[[:space:]]*//" | head -1)
+                            line_info=$(grep -n "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" 2>/dev/null | grep -v "^[[:space:]]*#\|^[[:space:]]*//" 2>/dev/null | head -1 2>/dev/null) || true
                             local line_num
-                            line_num=$(echo "$line_info" | cut -d: -f1)
+                            line_num=$(echo "$line_info" | cut -d: -f1 2>/dev/null) || true
 
                             # Check if it's a minified file or has very long lines
-                            if [[ "$file" == *".min.js"* ]] || [[ $(echo "$suspicious_usage" | wc -c) -gt 150 ]]; then
+                            if [[ "$file" == *".min.js"* ]] || [[ $(echo "$suspicious_usage" | wc -c 2>/dev/null) -gt 150 ]]; then
                                 # Extract just around the domain
                                 local snippet
-                                snippet=$(echo "$suspicious_usage" | grep -o ".\{0,20\}$domain.\{0,20\}" | head -1)
-                                NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ...${snippet}...")
+                                snippet=$(echo "$suspicious_usage" | grep -o ".\{0,20\}$domain.\{0,20\}" 2>/dev/null | head -1 2>/dev/null) || true
+                                if [[ -n "$line_num" ]]; then
+                                    NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ...${snippet}...")
+                                else
+                                    NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain: ...${snippet}...")
+                                fi
                             else
                                 local snippet
-                                snippet=$(echo "$suspicious_usage" | cut -c1-80)
-                                NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ${snippet}...")
+                                snippet=$(echo "$suspicious_usage" | cut -c1-80 2>/dev/null) || true
+                                if [[ -n "$line_num" ]]; then
+                                    NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ${snippet}...")
+                                else
+                                    NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain: ${snippet}...")
+                                fi
                             fi
                         fi
                     fi
@@ -769,17 +777,21 @@ check_network_exfiltration() {
                 if grep -q 'atob(' "$file" 2>/dev/null || grep -q 'base64.*decode' "$file" 2>/dev/null; then
                     # Get line number and a small snippet
                     local line_num
-                    line_num=$(grep -n 'atob\|base64.*decode' "$file" | head -1 | cut -d: -f1)
+                    line_num=$(grep -n 'atob\|base64.*decode' "$file" 2>/dev/null | head -1 2>/dev/null | cut -d: -f1 2>/dev/null) || true
                     local snippet
 
                     # For minified files, try to extract just the relevant part
-                    if [[ "$file" == *".min.js"* ]] || [[ $(head -1 "$file" | wc -c) -gt 500 ]]; then
+                    if [[ "$file" == *".min.js"* ]] || [[ $(head -1 "$file" 2>/dev/null | wc -c 2>/dev/null) -gt 500 ]]; then
                         # Extract a small window around the atob call
-                        snippet=$(sed -n "${line_num}p" "$file" | grep -o '.\{0,30\}atob.\{0,30\}' | head -1)
-                        if [[ -z "$snippet" ]]; then
-                            snippet=$(sed -n "${line_num}p" "$file" | grep -o '.\{0,30\}base64.*decode.\{0,30\}' | head -1)
+                        if [[ -n "$line_num" ]]; then
+                            snippet=$(sed -n "${line_num}p" "$file" 2>/dev/null | grep -o '.\{0,30\}atob.\{0,30\}' 2>/dev/null | head -1 2>/dev/null) || true
+                            if [[ -z "$snippet" ]]; then
+                                snippet=$(sed -n "${line_num}p" "$file" 2>/dev/null | grep -o '.\{0,30\}base64.*decode.\{0,30\}' 2>/dev/null | head -1 2>/dev/null) || true
+                            fi
+                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Base64 decoding at line $line_num: ...${snippet}...")
+                        else
+                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Base64 decoding detected")
                         fi
-                        NETWORK_EXFILTRATION_WARNINGS+=("$file:Base64 decoding at line $line_num: ...${snippet}...")
                     else
                         snippet=$(sed -n "${line_num}p" "$file" | cut -c1-80)
                         NETWORK_EXFILTRATION_WARNINGS+=("$file:Base64 decoding at line $line_num: ${snippet}...")
@@ -814,15 +826,19 @@ check_network_exfiltration() {
             if [[ "$file" != *"/vendor/"* && "$file" != *"/node_modules/"* && "$file" != *".min.js"* ]]; then
                 if grep -q "btoa(" "$file" 2>/dev/null; then
                     # Check if it's near network operations (simplified to avoid hanging)
-                    if grep -C3 "btoa(" "$file" | grep -q "\(fetch\|XMLHttpRequest\|axios\)" 2>/dev/null; then
+                    if grep -C3 "btoa(" "$file" 2>/dev/null | grep -q "\(fetch\|XMLHttpRequest\|axios\)" 2>/dev/null; then
                         # Additional check - make sure it's not just legitimate authentication
-                        if ! grep -C3 "btoa(" "$file" | grep -q "Authorization:\|Basic \|Bearer " 2>/dev/null; then
+                        if ! grep -C3 "btoa(" "$file" 2>/dev/null | grep -q "Authorization:\|Basic \|Bearer " 2>/dev/null; then
                             # Get a small snippet around the btoa usage
                             local line_num
-                            line_num=$(grep -n "btoa(" "$file" | head -1 | cut -d: -f1)
+                            line_num=$(grep -n "btoa(" "$file" 2>/dev/null | head -1 2>/dev/null | cut -d: -f1 2>/dev/null) || true
                             local snippet
-                            snippet=$(sed -n "${line_num}p" "$file" | cut -c1-80)
-                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious base64 encoding near network operation at line $line_num: ${snippet}...")
+                            if [[ -n "$line_num" ]]; then
+                                snippet=$(sed -n "${line_num}p" "$file" 2>/dev/null | cut -c1-80 2>/dev/null) || true
+                                NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious base64 encoding near network operation at line $line_num: ${snippet}...")
+                            else
+                                NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious base64 encoding near network operation")
+                            fi
                         fi
                     fi
                 fi
