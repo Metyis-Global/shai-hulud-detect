@@ -701,7 +701,7 @@ check_typosquatting() {
                         local diff_count=0
                         for ((i=0; i<${#package_name}; i++)); do
                             if [[ "${package_name:$i:1}" != "${popular:$i:1}" ]]; then
-                                ((diff_count++))
+                                diff_count=$((diff_count+1))
                             fi
                         done
 
@@ -757,7 +757,7 @@ check_typosquatting() {
                                 local ns_diff=0
                                 for ((i=0; i<${#ns_clean}; i++)); do
                                     if [[ "${ns_clean:$i:1}" != "${sus_clean:$i:1}" ]]; then
-                                        ((ns_diff++))
+                                        ns_diff=$((ns_diff+1))
                                     fi
                                 done
 
@@ -954,6 +954,7 @@ generate_report() {
             echo "   - $file"
             show_file_preview "$file" "Known malicious workflow filename"
             ((high_risk++))
+            high_risk=$((high_risk+1))
         done
     fi
 
@@ -967,6 +968,7 @@ generate_report() {
             echo "     Hash: $hash"
             show_file_preview "$file_path" "File matches known malicious SHA-256 hash"
             ((high_risk++))
+            high_risk=$((high_risk+1))
         done
     fi
 
@@ -980,6 +982,7 @@ generate_report() {
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "Contains compromised package version: $package_info"
             ((high_risk++))
+            high_risk=$((high_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: These specific package versions are known to be compromised.${NC}"
         echo -e "   ${YELLOW}You should immediately update or remove these packages.${NC}"
@@ -995,7 +998,7 @@ generate_report() {
             echo "   - Pattern: $pattern"
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "Contains suspicious pattern: $pattern"
-            ((medium_risk++))
+            medium_risk=$((medium_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: Manual review required to determine if these are malicious.${NC}"
         echo
@@ -1020,7 +1023,7 @@ generate_report() {
             print_status "$RED" "🚨 HIGH RISK: Cryptocurrency theft patterns detected:"
             for entry in "${crypto_high[@]}"; do
                 echo "   - ${entry}"
-                ((high_risk++))
+                high_risk=$((high_risk+1))
             done
             echo -e "   ${RED}NOTE: These patterns strongly indicate crypto theft malware from the September 8 attack.${NC}"
             echo -e "   ${RED}Immediate investigation and remediation required.${NC}"
@@ -1032,7 +1035,7 @@ generate_report() {
             print_status "$YELLOW" "⚠️  MEDIUM RISK: Potential cryptocurrency manipulation patterns:"
             for entry in "${crypto_medium[@]}"; do
                 echo "   - ${entry}"
-                ((medium_risk++))
+                medium_risk=$((medium_risk+1))
             done
             echo -e "   ${YELLOW}NOTE: These may be legitimate crypto tools or framework code.${NC}"
             echo -e "   ${YELLOW}Manual review recommended to determine if they are malicious.${NC}"
@@ -1055,7 +1058,7 @@ generate_report() {
             echo -e "     ${BLUE}│${NC}  git diff main...shai-hulud"
             echo -e "     ${BLUE}└─${NC}"
             echo
-            ((medium_risk++))
+            medium_risk=$((medium_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: 'shai-hulud' branches may indicate compromise.${NC}"
         echo -e "   ${YELLOW}Use the commands above to investigate each branch.${NC}"
@@ -1072,6 +1075,7 @@ generate_report() {
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "Contains suspicious postinstall hook: $hook_info"
             ((high_risk++))
+            high_risk=$((high_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: Postinstall hooks can execute arbitrary code during package installation.${NC}"
         echo -e "   ${YELLOW}Review these hooks carefully for malicious behavior.${NC}"
@@ -1112,7 +1116,7 @@ generate_report() {
             echo "   - Activity: $activity_info"
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "HIGH RISK: $activity_info"
-            ((high_risk++))
+            high_risk=$((high_risk+1))
         done
         echo -e "   ${RED}NOTE: These patterns indicate likely malicious credential harvesting.${NC}"
         echo -e "   ${RED}Immediate investigation and remediation required.${NC}"
@@ -1128,7 +1132,7 @@ generate_report() {
             echo "   - Pattern: $activity_info"
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "MEDIUM RISK: $activity_info"
-            ((medium_risk++))
+            medium_risk=$((medium_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: These may be legitimate security tools or framework code.${NC}"
         echo -e "   ${YELLOW}Manual review recommended to determine if they are malicious.${NC}"
@@ -1155,7 +1159,7 @@ generate_report() {
             echo -e "     ${BLUE}│${NC}  ls -la"
             echo -e "     ${BLUE}└─${NC}"
             echo
-            ((high_risk++))
+            high_risk=$((high_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: 'Shai-Hulud' repositories are created by the malware for exfiltration.${NC}"
         echo -e "   ${YELLOW}These should be deleted immediately after investigation.${NC}"
@@ -1171,7 +1175,7 @@ generate_report() {
             echo "   - Warning: $namespace_info"
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "Contains packages from compromised namespace"
-            ((medium_risk++))
+            medium_risk=$((medium_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: These namespaces have been compromised but specific versions may vary.${NC}"
         echo -e "   ${YELLOW}Check package versions against known compromise lists.${NC}"
@@ -1187,7 +1191,7 @@ generate_report() {
             echo "   - Issue: $issue_info"
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "Package integrity issue: $issue_info"
-            ((medium_risk++))
+            medium_risk=$((medium_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: These issues may indicate tampering with package dependencies.${NC}"
         echo -e "   ${YELLOW}Verify package versions and regenerate lockfiles if necessary.${NC}"
@@ -1205,8 +1209,8 @@ generate_report() {
             echo "   - Warning: $warning_info"
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "Potential typosquatting: $warning_info"
-            ((medium_risk++))
-            ((typo_count++))
+            medium_risk=$((medium_risk+1))
+            typo_count=$((typo_count+1))
         done
         if [[ ${#TYPOSQUATTING_WARNINGS[@]} -gt 5 ]]; then
             echo "   - ... and $((${#TYPOSQUATTING_WARNINGS[@]} - 5)) more typosquatting warnings (truncated for brevity)"
@@ -1227,8 +1231,8 @@ generate_report() {
             echo "   - Warning: $warning_info"
             echo "     Found in: $file_path"
             show_file_preview "$file_path" "Network exfiltration pattern: $warning_info"
-            ((medium_risk++))
-            ((net_count++))
+            medium_risk=$((medium_risk+1))
+            net_count=$((net_count+1))
         done
         if [[ ${#NETWORK_EXFILTRATION_WARNINGS[@]} -gt 5 ]]; then
             echo "   - ... and $((${#NETWORK_EXFILTRATION_WARNINGS[@]} - 5)) more network warnings (truncated for brevity)"
