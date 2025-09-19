@@ -892,23 +892,27 @@ for /r "!scan_dir!" %%f in (*.js *.py *.sh *.json) do (
             if "!file_context!"=="test" (
                 :: Skip test files
                 rem Test files are not a security risk
-            ) else if "!file_context!"=="security_tool" (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in security tool"
-            ) else if "!file_context!"=="dependency" (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in dependencies"
             ) else (
+                if "!file_context!"=="security_tool" (
+                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in security tool"
+                ) else (
+                    if "!file_context!"=="dependency" (
+                        set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                        set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in dependencies"
+                    ) else (
                 :: Check if combined with exfiltration patterns
                 findstr /i "webhook.site curl https.request" "%%f" >nul 2>&1
                 if not errorlevel 1 (
                     set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
                     set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Credential patterns with exfiltration"
                     echo       [!] CRITICAL: Credential harvesting with exfiltration in: %%f
-                ) else (
-                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Credential scanning patterns"
-                    echo       [!] WARNING: Credential scanning patterns in: %%f
+                        ) else (
+                            set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                            set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Credential scanning patterns"
+                            echo       [!] WARNING: Credential scanning patterns in: %%f
+                        )
+                    )
                 )
             )
         )
