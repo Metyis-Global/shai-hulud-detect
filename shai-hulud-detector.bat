@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cls
 
 :: Shai-Hulud NPM Supply Chain Attack Detection Script
-:: Version: 2.0.0 (Enhanced with all missing features)
+:: Version: 4.0.0 - Full Feature Parity with Shell Script
 :: Detects indicators of compromise from the September 2025 npm attack
 :: Usage: shai-hulud-detector.bat [--paranoid] <directory_to_scan>
 
@@ -24,6 +24,7 @@ set /a LOW_RISK_FINDINGS_COUNT=0
 set /a INTEGRITY_ISSUES_COUNT=0
 set /a TYPOSQUATTING_WARNINGS_COUNT=0
 set /a NETWORK_EXFILTRATION_WARNINGS_COUNT=0
+set /a CRYPTO_PATTERNS_COUNT=0
 
 :: Initialize variables
 set "PARANOID_MODE=false"
@@ -66,7 +67,7 @@ for %%i in ("!SCAN_DIR!") do set "SCAN_DIR=%%~fi"
 echo.
 call :print_blue "=============================================="
 call :print_blue "    SHAI-HULUD ATTACK DETECTION TOOL"
-call :print_blue "         Version 3.0.0"
+call :print_blue "    Version 4.0.0 - Full Feature Parity"
 call :print_blue "=============================================="
 echo.
 
@@ -91,6 +92,7 @@ call :check_file_hashes "!SCAN_DIR!"
 call :check_packages "!SCAN_DIR!"
 call :check_postinstall_hooks "!SCAN_DIR!"
 call :check_content "!SCAN_DIR!"
+call :check_crypto_theft_patterns "!SCAN_DIR!"
 call :check_trufflehog_activity "!SCAN_DIR!"
 call :check_git_branches "!SCAN_DIR!"
 call :check_shai_hulud_repos "!SCAN_DIR!"
@@ -149,33 +151,59 @@ set /a COMPROMISED_PACKAGES_COUNT=0
 
 if exist "!packages_file!" (
     echo    Loading compromised package database...
+    echo    Analyzing package entries and filtering valid patterns...
     set /a temp_count=0
+    set /a valid_entries=0
+    set /a skipped_comments=0
+    set /a skipped_empty=0
     
-    :: Read file line by line
+    :: Read file line by line with enhanced parsing
     for /f "usebackq delims=" %%a in ("!packages_file!") do (
         set "line=%%a"
+        set /a temp_count+=1
         
         :: Skip empty lines and lines starting with #
         set "first_char=!line:~0,1!"
-        if not "!first_char!"=="#" if not "!line!"=="" (
-            :: Check if line contains : (package:version pattern)
+        if "!first_char!"=="#" (
+            set /a skipped_comments+=1
+        ) else if "!line!"=="" (
+            set /a skipped_empty+=1
+        ) else (
+            :: Enhanced validation - check for proper package:version pattern
             set "test_line=!line!"
             set "test_line=!test_line::=COLON!"
             if not "!test_line!"=="!line!" (
-                :: Valid package line found
-                set /a temp_count+=1
-                set "COMPROMISED_PACKAGES[!temp_count!]=!line!"
-                
-                :: Show progress every 100 packages
-                set /a mod=!temp_count!%%100
-                if !mod! equ 0 echo       [+] !temp_count! packages loaded...
+                :: Further validate that it matches package name pattern
+                echo "!line!" | findstr /r "^[a-zA-Z@][^:]*:[0-9][0-9]*\.[0-9][0-9]*\.[0-9]" >nul 2>&1
+                if not errorlevel 1 (
+                    :: Valid package line found
+                    set /a valid_entries+=1
+                    set "COMPROMISED_PACKAGES[!valid_entries!]=!line!"
+                    
+                    :: Show progress every 50 packages for better feedback
+                    set /a mod=!valid_entries!%%50
+                    if !mod! equ 0 (
+                        echo       [+] !valid_entries! valid packages loaded...
+                        echo          Latest: !line!
+                    )
+                ) else (
+                    :: Log invalid format for debugging
+                    echo       [!] Skipping invalid format: !line!
+                )
+            ) else (
+                echo       [!] Skipping line without colon: !line!
             )
         )
     )
     
-    set /a COMPROMISED_PACKAGES_COUNT=!temp_count!
-    call :print_blue "[+] Loaded !COMPROMISED_PACKAGES_COUNT! compromised packages from !packages_file!"
-    echo    Package database contains known malicious versions from Shai-Hulud attack
+    set /a COMPROMISED_PACKAGES_COUNT=!valid_entries!
+    call :print_blue "[+] Package database analysis complete:"
+    echo    - Total lines processed: !temp_count!
+    echo    - Valid compromised packages: !COMPROMISED_PACKAGES_COUNT!
+    echo    - Skipped comments: !skipped_comments!
+    echo    - Skipped empty lines: !skipped_empty!
+    echo    - Database source: !packages_file!
+    echo    - Contains known malicious versions from multiple September 2025 attacks
 ) else (
     call :print_yellow "[!]  Warning: !packages_file! not found, using embedded package list"
     :: Fallback to embedded list
@@ -371,31 +399,43 @@ if exist "!temp_package_file!" (
         :: Read package.json content and check for compromised packages
         set "current_file=%%f"
         
-        :: Use a simpler approach - just check for the most common compromised packages directly
-        :: This avoids the problematic for /f loop with colon delimiters
-        
-        :: Check for @ctrl/tinycolor:4.1.0
-        findstr /c:"\"@ctrl/tinycolor\": \"4.1.0\"" "!current_file!" >nul 2>&1
-        if not errorlevel 1 (
-            set /a COMPROMISED_FOUND_COUNT+=1
-            set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:@ctrl/tinycolor@4.1.0"
-            echo       [!] FOUND compromised package: @ctrl/tinycolor@4.1.0
-        )
-        
-        :: Check for @ctrl/deluge:1.2.0
-        findstr /c:"\"@ctrl/deluge\": \"1.2.0\"" "!current_file!" >nul 2>&1
-        if not errorlevel 1 (
-            set /a COMPROMISED_FOUND_COUNT+=1
-            set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:@ctrl/deluge@1.2.0"
-            echo       [!] FOUND compromised package: @ctrl/deluge@1.2.0
-        )
-        
-        :: Check for @nativescript-community/ui-material-core:7.2.49
-        findstr /c:"\"@nativescript-community/ui-material-core\": \"7.2.49\"" "!current_file!" >nul 2>&1
-        if not errorlevel 1 (
-            set /a COMPROMISED_FOUND_COUNT+=1
-            set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:@nativescript-community/ui-material-core@7.2.49"
-            echo       [!] FOUND compromised package: @nativescript-community/ui-material-core@7.2.49
+        :: Enhanced approach - check against full compromised package database
+        :: Process all loaded compromised packages
+        for /l %%p in (1,1,!COMPROMISED_PACKAGES_COUNT!) do (
+            set "package_entry=!COMPROMISED_PACKAGES[%%p]!"
+            
+            :: Split package entry into name and version
+            for /f "tokens=1,2 delims=:" %%x in ("!package_entry!") do (
+                set "package_name=%%x"
+                set "malicious_version=%%y"
+                
+                :: Check if package.json contains this package name
+                findstr /c:"\"!package_name!\"" "!current_file!" >nul 2>&1
+                if not errorlevel 1 (
+                    :: Check for exact version match
+                    findstr /c:"\"!package_name!\": \"!malicious_version!\"" "!current_file!" >nul 2>&1
+                    if not errorlevel 1 (
+                        set /a COMPROMISED_FOUND_COUNT+=1
+                        set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@!malicious_version!"
+                        echo       [!] FOUND compromised package: !package_name!@!malicious_version!
+                    ) else (
+                        :: Check for range patterns like "^4.1.0" or "~4.1.0"
+                        findstr /c:"\"!package_name!\": \"^!malicious_version!\"" "!current_file!" >nul 2>&1
+                        if not errorlevel 1 (
+                            set /a COMPROMISED_FOUND_COUNT+=1
+                            set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@^!malicious_version!"
+                            echo       [!] FOUND compromised package range: !package_name!@^!malicious_version!
+                        ) else (
+                            findstr /c:"\"!package_name!\": \"~!malicious_version!\"" "!current_file!" >nul 2>&1
+                            if not errorlevel 1 (
+                                set /a COMPROMISED_FOUND_COUNT+=1
+                                set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@~!malicious_version!"
+                                echo       [!] FOUND compromised package range: !package_name!@~!malicious_version!
+                            )
+                        )
+                    )
+                )
+            )
         )
         
         :: Check for suspicious namespaces (simplified) - avoid the drive specification error
@@ -518,6 +558,129 @@ if !SUSPICIOUS_CONTENT_COUNT! gtr 0 (
 )
 goto :eof
 
+:check_crypto_theft_patterns
+set "scan_dir=%~1"
+call :print_blue "[-] Checking for cryptocurrency theft patterns (Chalk/Debug Sept 8, 2025 attack)..."
+echo    Analyzing files for wallet address replacement and crypto manipulation...
+
+set /a crypto_files_scanned=0
+set /a initial_crypto_count=!CRYPTO_PATTERNS_COUNT!
+
+:: Change to scan directory
+cd /d "!scan_dir!" 2>nul
+if not errorlevel 1 (
+    :: Use temp file to find JS/TS/JSON files for crypto pattern scanning
+    set "temp_crypto_file=shai_hulud_crypto.tmp"
+    dir /s /b *.js *.ts *.json 2>nul > "!temp_crypto_file!"
+    
+    if exist "!temp_crypto_file!" (
+        for /f "usebackq delims=" %%f in ("!temp_crypto_file!") do (
+            if exist "%%f" (
+                set /a crypto_files_scanned+=1
+                
+                :: Check for Ethereum wallet address patterns (0x followed by 40 hex chars)
+                findstr /r "0x[a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9]" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    :: Also check if file mentions ethereum, wallet, address, or crypto
+                    findstr /i "ethereum wallet address crypto" "%%f" >nul 2>&1
+                    if not errorlevel 1 (
+                        set /a CRYPTO_PATTERNS_COUNT+=1
+                        set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Ethereum wallet address patterns detected"
+                        echo       [!] FOUND Ethereum wallet patterns in: %%f
+                    )
+                )
+                
+                :: Check for XMLHttpRequest hijacking
+                findstr /c:"XMLHttpRequest.prototype.send" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:XMLHttpRequest prototype modification detected - HIGH RISK"
+                    echo       [!] CRITICAL: XMLHttpRequest hijacking in: %%f
+                )
+                
+                :: Check for specific malicious functions from chalk/debug attack
+                findstr /i "checkethereumw runmask newdlocal _0x19ca67" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Known crypto theft function names detected - HIGH RISK"
+                    echo       [!] CRITICAL: Known crypto theft functions in: %%f
+                )
+                
+                :: Check for known attacker wallets (HIGH RISK)
+                findstr /c:"0xFc4a4858bafef54D1b1d7697bfb5c52F4c166976" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Known attacker Ethereum wallet detected - HIGH RISK"
+                    echo       [!] CRITICAL: Known attacker wallet in: %%f
+                )
+                
+                findstr /c:"1H13VnQJKtT4HjD5ZFKaaiZEetMbG7nDHx" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Known attacker Bitcoin wallet detected - HIGH RISK"
+                    echo       [!] CRITICAL: Known attacker Bitcoin wallet in: %%f
+                )
+                
+                findstr /c:"TB9emsCq6fQw6wRk4HBxxNnU6Hwt1DnV67" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Known attacker Bitcoin testnet wallet detected - HIGH RISK"
+                    echo       [!] CRITICAL: Known attacker testnet wallet in: %%f
+                )
+                
+                :: Check for npmjs.help phishing domain
+                findstr /c:"npmjs.help" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Phishing domain npmjs.help detected - HIGH RISK"
+                    echo       [!] CRITICAL: Phishing domain npmjs.help in: %%f
+                )
+                
+                :: Check for javascript obfuscation patterns
+                findstr /c:"javascript-obfuscator" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:JavaScript obfuscation detected"
+                    echo       [!] WARNING: JavaScript obfuscation in: %%f
+                )
+                
+                :: Check for cryptocurrency address regex patterns
+                findstr /r "ethereum.*0x\[a-fA-F0-9\]" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Cryptocurrency regex patterns detected"
+                    echo       [!] WARNING: Crypto regex patterns in: %%f
+                )
+                
+                :: Check for Bitcoin address patterns
+                findstr /r "bitcoin.*\[13\]\[a-km-zA-HJ-NP-Z1-9\]" "%%f" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a CRYPTO_PATTERNS_COUNT+=1
+                    set "CRYPTO_PATTERNS[!CRYPTO_PATTERNS_COUNT!]=%%f:Bitcoin address regex patterns detected"
+                    echo       [!] WARNING: Bitcoin regex patterns in: %%f
+                )
+            )
+        )
+        del "!temp_crypto_file!" 2>nul
+    ) else (
+        echo    No JavaScript/TypeScript/JSON files found for crypto pattern scanning
+    )
+)
+
+:: Change back to script directory
+cd /d "%~dp0"
+
+set /a crypto_matches=!CRYPTO_PATTERNS_COUNT!-!initial_crypto_count!
+echo    Scanned !crypto_files_scanned! files for cryptocurrency theft patterns
+
+if !crypto_matches! gtr 0 (
+    call :print_red "   [!] Found !crypto_matches! cryptocurrency theft pattern(s)!"
+    echo    These patterns may indicate crypto wallet hijacking malware
+) else (
+    call :print_green "   [OK] No cryptocurrency theft patterns detected"
+)
+goto :eof
+
 :show_file_preview
 :: Helper function to show a preview of file contents
 set "file_path=%~1"
@@ -539,44 +702,136 @@ echo      +-
 goto :eof
 
 :get_file_context
-:: Helper function to determine file context for risk assessment
+:: Enhanced helper function to determine file context for risk assessment
 set "file_path=%~1"
 set "file_context=unknown"
 
-:: Check if file is in test directory
-echo !file_path! | findstr /i "test spec \.test\. \.spec\. __test__ __spec__" >nul 2>&1
-if not errorlevel 1 (
-    set "file_context=test"
-    goto :eof
-)
-
-:: Check if file is a security tool
-echo !file_path! | findstr /i "security scanner audit scan detect" >nul 2>&1
-if not errorlevel 1 (
-    :: Check file content for legitimate security tool patterns
-    findstr /i "security.*tool legitimate.*scan audit.*report" "!file_path!" >nul 2>&1
-    if not errorlevel 1 (
-        set "file_context=security_tool"
-        goto :eof
-    )
-)
-
-:: Check if file is in node_modules
+:: Check if file is in node_modules (highest priority for dependency context)
 echo !file_path! | findstr /i "node_modules" >nul 2>&1
 if not errorlevel 1 (
-    set "file_context=dependency"
+    set "file_context=node_modules"
     goto :eof
 )
 
 :: Check if file is documentation
-echo !file_path! | findstr /i "\.md$ readme doc" >nul 2>&1
+echo !file_path! | findstr /i "\.md$ \.txt$ \.rst$ readme changelog license" >nul 2>&1
 if not errorlevel 1 (
     set "file_context=documentation"
     goto :eof
 )
 
+:: Check if file is TypeScript definitions
+echo !file_path! | findstr /i "\.d\.ts$" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=type_definitions"
+    goto :eof
+)
+
+:: Check if file is in build/dist/public directories
+echo !file_path! | findstr /i "\\dist\\ \\build\\ \\public\\ \\out\\ \\target\\" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=build_output"
+    goto :eof
+)
+
+:: Check if file is in test directories
+echo !file_path! | findstr /i "test spec \.test\. \.spec\. __test__ __spec__ \\tests\\ \\test\\" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=test"
+    goto :eof
+)
+
+:: Check if it's a config file
+for %%f in ("!file_path!") do set "filename=%%~nxf"
+echo !filename! | findstr /i "config webpack rollup vite babel eslint" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=configuration"
+    goto :eof
+)
+
+:: Check for package.json or other package files
+echo !filename! | findstr /i "package\.json package-lock\.json yarn\.lock" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=package_manifest"
+    goto :eof
+)
+
+:: Check if file is a security/audit tool
+echo !file_path! | findstr /i "security scanner audit scan detect trufflehog" >nul 2>&1
+if not errorlevel 1 (
+    :: Check file content for legitimate security tool patterns (if file exists and readable)
+    if exist "!file_path!" (
+        findstr /i "security.*tool legitimate.*scan audit.*report" "!file_path!" >nul 2>&1
+        if not errorlevel 1 (
+            set "file_context=security_tool"
+            goto :eof
+        )
+    )
+    set "file_context=potential_security_tool"
+    goto :eof
+)
+
+:: Check if file is vendor/third-party code
+echo !file_path! | findstr /i "vendor third-party libs library libraries" >nul 2>&1
+if not errorlevel 1 (
+    set "file_context=vendor"
+    goto :eof
+)
+
 :: Default to source code
-set "file_context=source"
+set "file_context=source_code"
+goto :eof
+
+:: Helper function to check for legitimate patterns (enhanced)
+:is_legitimate_pattern
+set "file_path=%~1"
+set "content_sample=%~2"
+set "is_legitimate=0"
+
+:: Vue.js development patterns
+echo !content_sample! | findstr /i "process\.env\.NODE_ENV.*production" >nul 2>&1
+if not errorlevel 1 (
+    set "is_legitimate=1"
+    goto :eof
+)
+
+:: Common framework patterns
+echo !content_sample! | findstr /i "createApp Vue React Angular" >nul 2>&1
+if not errorlevel 1 (
+    set "is_legitimate=1"
+    goto :eof
+)
+
+:: Package manager and build tool patterns
+echo !content_sample! | findstr /i "webpack vite rollup parcel esbuild" >nul 2>&1
+if not errorlevel 1 (
+    set "is_legitimate=1"
+    goto :eof
+)
+
+:: Testing framework patterns
+echo !content_sample! | findstr /i "jest mocha jasmine cypress playwright" >nul 2>&1
+if not errorlevel 1 (
+    set "is_legitimate=1"
+    goto :eof
+)
+
+:: Development server patterns
+echo !content_sample! | findstr /i "webpack-dev-server vite.*dev next.*dev" >nul 2>&1
+if not errorlevel 1 (
+    set "is_legitimate=1"
+    goto :eof
+)
+
+:: Environment configuration patterns
+echo !content_sample! | findstr /i "dotenv config.*env DefinePlugin" >nul 2>&1
+if not errorlevel 1 (
+    set "is_legitimate=1"
+    goto :eof
+)
+
+:: Default to potentially suspicious
+set "is_legitimate=0"
 goto :eof
 
 :check_trufflehog_activity
@@ -599,26 +854,51 @@ for /r "!scan_dir!" %%f in (*.js *.py *.sh *.json) do (
     if exist "%%f" (
         set /a trufflehog_files_scanned+=1
         
-        :: Check for trufflehog references
-        findstr /i "trufflehog" "%%f" >nul 2>&1
+        :: Check for trufflehog references with enhanced context analysis
+        findstr /i "trufflehog TruffleHog" "%%f" >nul 2>&1
         if not errorlevel 1 (
             call :get_file_context "%%f"
-            if "!file_context!"=="test" (
-                :: Skip test files
-                rem Test files are not a security risk
+            
+            :: Get content sample for pattern analysis
+            set "content_sample="
+            if exist "%%f" (
+                for /f "usebackq delims=" %%l in ('"%%f"') do (
+                    set "content_sample=!content_sample! %%l"
+                    goto :break_content_loop
+                )
+                :break_content_loop
+            )
+            
+            if "!file_context!"=="documentation" (
+                :: Documentation mentioning trufflehog is usually legitimate
+                rem Skip - not a security risk
+            ) else if "!file_context!"=="node_modules" (
+                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains trufflehog references in node_modules"
+            ) else if "!file_context!"=="type_definitions" (
+                :: Type definitions mentioning trufflehog are usually legitimate
+                rem Skip - not a security risk
+            ) else if "!file_context!"=="build_output" (
+                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Trufflehog references in build output"
             ) else if "!file_context!"=="security_tool" (
                 set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
                 set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Legitimate security tool"
-            ) else if "!file_context!"=="dependency" (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Trufflehog in dependencies"
-            ) else if "!file_context!"=="documentation" (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Trufflehog reference in documentation"
+            ) else if "!file_context!"=="test" (
+                :: Skip test files - usually legitimate
+                rem Test files are not a security risk
             ) else (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Trufflehog in source code"
-                echo       [!] FOUND Trufflehog reference in source: %%f
+                :: Source code with trufflehog references needs investigation
+                echo !content_sample! | findstr /i "subprocess.*curl https\.request" >nul 2>&1
+                if not errorlevel 1 (
+                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Suspicious trufflehog execution pattern"
+                    echo       [!] CRITICAL: Trufflehog with execution patterns: %%f
+                ) else (
+                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains trufflehog references in source code"
+                    echo       [!] WARNING: Trufflehog reference in source: %%f
+                )
             )
         )
         
@@ -770,13 +1050,39 @@ goto :eof
 :check_typosquatting
 set "scan_dir=%~1"
 
-:: Popular packages commonly targeted for typosquatting
-set "popular_packages=react vue angular express lodash axios typescript webpack babel eslint jest mocha chalk debug commander inquirer yargs request moment underscore jquery bootstrap socket.io redis mongoose passport"
-
-echo    Analyzing package names for typosquatting patterns...
-echo    Checking against popular packages for character variations...
+echo    Analyzing package names for advanced typosquatting patterns...
+echo    Checking for homoglyph attacks, character substitutions, and namespace confusion...
+echo    Comparing against popular packages for typosquatting attempts...
 
 set /a packages_checked=0
+
+:: Popular packages commonly targeted for typosquatting (expanded list)
+set "popular[1]=react"
+set "popular[2]=vue"
+set "popular[3]=angular"
+set "popular[4]=express"
+set "popular[5]=lodash"
+set "popular[6]=axios"
+set "popular[7]=typescript"
+set "popular[8]=webpack"
+set "popular[9]=babel"
+set "popular[10]=eslint"
+set "popular[11]=jest"
+set "popular[12]=mocha"
+set "popular[13]=chalk"
+set "popular[14]=debug"
+set "popular[15]=commander"
+set "popular[16]=inquirer"
+set "popular[17]=yargs"
+set "popular[18]=request"
+set "popular[19]=moment"
+set "popular[20]=underscore"
+set "popular[21]=jquery"
+set "popular[22]=bootstrap"
+set "popular[23]=redis"
+set "popular[24]=mongoose"
+set "popular[25]=passport"
+set /a popular_count=25
 
 :: Change to scan directory and use temp file approach
 cd /d "!scan_dir!" 2>nul
@@ -790,25 +1096,10 @@ if exist "!temp_typo_file!" (
     for /f "usebackq delims=" %%f in ("!temp_typo_file!") do (
         if exist "%%f" (
             set /a packages_checked+=1
-            echo    Scanning: %%~nxf
-        
-            :: Use simple approach to avoid complex parsing issues
-            :: Check for known typosquatting patterns
-            findstr /i "raect" "%%f" >nul 2>&1
-            if not errorlevel 1 (
-                set /a TYPOSQUATTING_WARNINGS_COUNT+=1
-                set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=%%f:Contains typosquatted package 'raect' (should be 'react')"
-            )
-            findstr /i "lodsh" "%%f" >nul 2>&1
-            if not errorlevel 1 (
-                set /a TYPOSQUATTING_WARNINGS_COUNT+=1
-                set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=%%f:Contains typosquatted package 'lodsh' (should be 'lodash')"
-            )
-            findstr /i "expres" "%%f" >nul 2>&1
-            if not errorlevel 1 (
-                set /a TYPOSQUATTING_WARNINGS_COUNT+=1
-                set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=%%f:Contains typosquatted package 'expres' (should be 'express')"
-            )
+            echo    Scanning: %%~nxf for typosquatting patterns...
+            
+            :: Extract package names from dependencies sections using enhanced approach
+            call :extract_and_check_packages "%%f"
         )
     )
     del "!temp_typo_file!" 2>nul
@@ -823,11 +1114,204 @@ cd /d "%~dp0"
 :: Add completion message
 if !TYPOSQUATTING_WARNINGS_COUNT! gtr 0 (
     call :print_yellow "   [FOUND] !TYPOSQUATTING_WARNINGS_COUNT! potential typosquatting issue(s)"
-    echo    Checked !packages_checked! package.json files
+    echo    Advanced pattern analysis completed on !packages_checked! package.json files
 ) else (
     call :print_green "   [OK] No typosquatting patterns detected"
-    echo    Checked !packages_checked! package.json files
+    echo    Advanced analysis completed on !packages_checked! package.json files
 )
+goto :eof
+
+:extract_and_check_packages
+set "package_file=%~1"
+
+:: Use temp file to extract just the package names
+set "temp_pkg_names=shai_hulud_pkg_names.tmp"
+findstr /r "^[[:space:]]*\"[^\"]*\"[[:space:]]*:" "!package_file!" > "!temp_pkg_names!" 2>nul
+
+if exist "!temp_pkg_names!" (
+    for /f "usebackq tokens=* delims=" %%p in ("!temp_pkg_names!") do (
+        set "line=%%p"
+        :: Extract package name between quotes
+        for /f "tokens=2 delims=:" %%n in ("!line!") do (
+            set "raw_name=%%n"
+            :: Remove quotes and spaces
+            set "package_name=!raw_name:"=!"
+            set "package_name=!package_name: =!"
+            
+            :: Only process if it looks like a package name
+            if not "!package_name!"=="" (
+                call :check_package_for_typosquatting "!package_file!" "!package_name!"
+            )
+        )
+    )
+    del "!temp_pkg_names!" 2>nul
+)
+goto :eof
+
+:check_package_for_typosquatting
+set "file_path=%~1"
+set "package_name=%~2"
+
+:: Skip if package name is too short or contains no letters
+call :strlen pkg_len "!package_name!"
+if !pkg_len! lss 2 goto :eof
+
+:: Check for Unicode/non-ASCII characters (simplified detection)
+echo !package_name! | findstr /r "[^a-zA-Z0-9@/._-]" >nul 2>&1
+if not errorlevel 1 (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential Unicode/homoglyph characters in package: !package_name!"
+)
+
+:: Check for confusable character patterns
+call :check_confusables_in_package "!file_path!" "!package_name!"
+
+:: Check against popular packages for similarity
+for /l %%i in (1,1,!popular_count!) do (
+    call :check_similarity "!file_path!" "!package_name!" "!popular[%%i]!"
+)
+
+:: Check for namespace confusion (scoped packages)
+echo !package_name! | findstr /r "^@" >nul 2>&1
+if not errorlevel 1 (
+    call :check_namespace_confusion "!file_path!" "!package_name!"
+)
+
+goto :eof
+
+:check_confusables_in_package
+set "file_path=%~1"
+set "package_name=%~2"
+
+:: Check for rn->m confusion
+set "test_name=!package_name:rn=m!"
+if not "!test_name!"=="!package_name!" (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential confusable characters (rn->m) in package: !package_name!"
+)
+
+:: Check for vv->w confusion
+set "test_name=!package_name:vv=w!"
+if not "!test_name!"=="!package_name!" (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential confusable characters (vv->w) in package: !package_name!"
+)
+
+:: Check for cl->d confusion
+set "test_name=!package_name:cl=d!"
+if not "!test_name!"=="!package_name!" (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential confusable characters (cl->d) in package: !package_name!"
+)
+
+:: Check for l->1 confusion
+set "test_name=!package_name:l=1!"
+if not "!test_name!"=="!package_name!" (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential confusable characters (l->1) in package: !package_name!"
+)
+
+:: Check for 0->o confusion
+set "test_name=!package_name:0=o!"
+if not "!test_name!"=="!package_name!" (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential confusable characters (0->o) in package: !package_name!"
+)
+
+goto :eof
+
+:check_similarity
+set "file_path=%~1"
+set "package_name=%~2"
+set "popular_name=%~3"
+
+:: Skip exact matches
+if "!package_name!"=="!popular_name!" goto :eof
+
+:: Skip common legitimate variations
+if "!package_name!"=="test" goto :eof
+if "!package_name!"=="tests" goto :eof
+if "!package_name!"=="testing" goto :eof
+if "!package_name!"=="types" goto :eof
+if "!package_name!"=="util" goto :eof
+if "!package_name!"=="utils" goto :eof
+if "!package_name!"=="core" goto :eof
+if "!package_name!"=="lib" goto :eof
+if "!package_name!"=="libs" goto :eof
+if "!package_name!"=="common" goto :eof
+if "!package_name!"=="shared" goto :eof
+
+:: Get string lengths
+call :strlen pkg_len "!package_name!"
+call :strlen pop_len "!popular_name!"
+
+:: Check for single character difference (only for packages > 4 chars)
+if !pkg_len! equ !pop_len! if !pkg_len! gtr 4 (
+    call :check_one_char_diff "!package_name!" "!popular_name!"
+    if !char_diff! equ 1 (
+        :: Additional check - avoid flagging if it contains common variations
+        echo !package_name! | findstr /r ".*-.*" >nul 2>&1
+        if errorlevel 1 (
+            echo !popular_name! | findstr /r ".*-.*" >nul 2>&1
+            if errorlevel 1 (
+                set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+                set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential typosquatting of '!popular_name!': !package_name! (1 character difference)"
+            )
+        )
+    )
+)
+
+:: Check for missing character
+set /a missing_len=!pop_len!-1
+if !pkg_len! equ !missing_len! (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential typosquatting of '!popular_name!': !package_name! (missing character)"
+)
+
+:: Check for extra character
+set /a extra_len=!pop_len!+1
+if !pkg_len! equ !extra_len! (
+    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Potential typosquatting of '!popular_name!': !package_name! (extra character)"
+)
+
+goto :eof
+
+:check_namespace_confusion
+set "file_path=%~1"
+set "scoped_package=%~2"
+
+:: Extract namespace and package parts
+for /f "tokens=1 delims=/" %%n in ("!scoped_package!") do set "namespace=%%n"
+for /f "tokens=2 delims=/" %%p in ("!scoped_package!/dummy") do set "package_part=%%p"
+
+:: Common namespaces that are often targeted
+set "suspicious_ns[1]=@types"
+set "suspicious_ns[2]=@angular"
+set "suspicious_ns[3]=@typescript"
+set "suspicious_ns[4]=@react"
+set "suspicious_ns[5]=@vue"
+set "suspicious_ns[6]=@babel"
+set /a suspicious_ns_count=6
+
+for /l %%i in (1,1,!suspicious_ns_count!) do (
+    if not "!namespace!"=="!suspicious_ns[%%i]!" (
+        :: Check if namespace is similar to a legitimate one
+        echo !namespace! | findstr /i "!suspicious_ns[%%i]:@=!" >nul 2>&1
+        if not errorlevel 1 (
+            call :strlen ns_len "!namespace!"
+            call :strlen sus_len "!suspicious_ns[%%i]!"
+            if !ns_len! equ !sus_len! (
+                call :check_one_char_diff "!namespace!" "!suspicious_ns[%%i]!"
+                if !char_diff! geq 1 if !char_diff! leq 2 (
+                    set /a TYPOSQUATTING_WARNINGS_COUNT+=1
+                    set "TYPOSQUATTING_WARNINGS[!TYPOSQUATTING_WARNINGS_COUNT!]=!file_path!:Suspicious namespace variation: !namespace! (similar to !suspicious_ns[%%i]!)"
+                )
+            )
+        )
+    )
+)
+
 goto :eof
 
 :: Helper function to calculate string length
@@ -1113,6 +1597,54 @@ if !SUSPICIOUS_CONTENT_COUNT! gtr 0 (
     )
     call :print_yellow "   NOTE: Manual review required to determine if these are malicious."
     echo.
+)
+
+:: Report cryptocurrency theft patterns
+if !CRYPTO_PATTERNS_COUNT! gtr 0 (
+    :: Separate HIGH RISK and MEDIUM RISK crypto patterns
+    set /a crypto_high_count=0
+    set /a crypto_medium_count=0
+    
+    for /l %%i in (1,1,!CRYPTO_PATTERNS_COUNT!) do (
+        echo !CRYPTO_PATTERNS[%%i]! | findstr /i "HIGH RISK XMLHttpRequest Known.*attacker npmjs.help" >nul 2>&1
+        if not errorlevel 1 (
+            set /a crypto_high_count+=1
+            set "CRYPTO_HIGH[!crypto_high_count!]=!CRYPTO_PATTERNS[%%i]!"
+        ) else (
+            set /a crypto_medium_count+=1
+            set "CRYPTO_MEDIUM[!crypto_medium_count!]=!CRYPTO_PATTERNS[%%i]!"
+        )
+    )
+    
+    :: Report HIGH RISK crypto patterns
+    if !crypto_high_count! gtr 0 (
+        call :print_red "[!] HIGH RISK: Cryptocurrency theft patterns detected:"
+        for /l %%i in (1,1,!crypto_high_count!) do (
+            for /f "tokens=1,2 delims=:" %%a in ("!CRYPTO_HIGH[%%i]!") do (
+                echo    - %%b
+                echo      Found in: %%a
+            )
+            set /a high_risk+=1
+        )
+        call :print_red "   NOTE: These patterns strongly indicate crypto theft malware from the September 8 attack."
+        call :print_red "   Immediate investigation and remediation required."
+        echo.
+    )
+    
+    :: Report MEDIUM RISK crypto patterns
+    if !crypto_medium_count! gtr 0 (
+        call :print_yellow "[!] MEDIUM RISK: Potential cryptocurrency manipulation patterns:"
+        for /l %%i in (1,1,!crypto_medium_count!) do (
+            for /f "tokens=1,2 delims=:" %%a in ("!CRYPTO_MEDIUM[%%i]!") do (
+                echo    - %%b
+                echo      Found in: %%a
+            )
+            set /a medium_risk+=1
+        )
+        call :print_yellow "   NOTE: These may be legitimate crypto tools or framework code."
+        call :print_yellow "   Manual review recommended to determine if they are malicious."
+        echo.
+    )
 )
 
 :: Report git branches
