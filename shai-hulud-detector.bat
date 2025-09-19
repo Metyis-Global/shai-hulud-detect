@@ -151,60 +151,31 @@ set /a COMPROMISED_PACKAGES_COUNT=0
 
 if exist "!packages_file!" (
     echo    Loading compromised package database...
-    echo    Analyzing package entries and filtering valid patterns...
     set /a temp_count=0
-    set /a valid_entries=0
-    set /a skipped_comments=0
-    set /a skipped_empty=0
     
-    :: Read file line by line with enhanced parsing
+    :: Read file line by line
     for /f "usebackq delims=" %%a in ("!packages_file!") do (
         set "line=%%a"
-        set /a temp_count+=1
         
         :: Skip empty lines and lines starting with #
         set "first_char=!line:~0,1!"
-        if "!first_char!"=="#" (
-            set /a skipped_comments+=1
-        ) else (
-            if "!line!"=="" (
-                set /a skipped_empty+=1
-            ) else (
-            :: Enhanced validation - check for proper package:version pattern
+        if not "!first_char!"=="#" if not "!line!"=="" (
+            :: Check if line contains : (package:version pattern)
             set "test_line=!line!"
             set "test_line=!test_line::=COLON!"
             if not "!test_line!"=="!line!" (
-                :: Further validate that it matches package name pattern
-                echo "!line!" | findstr /r "^[a-zA-Z@][^:]*:[0-9][0-9]*\.[0-9][0-9]*\.[0-9]" >nul 2>&1
-                if not errorlevel 1 (
-                    :: Valid package line found
-                    set /a valid_entries+=1
-                    set "COMPROMISED_PACKAGES[!valid_entries!]=!line!"
-                    
-                    :: Show progress using progressive intervals like shell script
-                    if !valid_entries! leq 20 (
-                        set /a mod=!valid_entries!%%10
-                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
-                    ) else (
-                        if !valid_entries! leq 100 (
-                            set /a mod=!valid_entries!%%20
-                            if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
-                        ) else (
-                            if !valid_entries! leq 500 (
-                                set /a mod=!valid_entries!%%50
-                                if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
-                            ) else (
-                                set /a mod=!valid_entries!%%100
-                                if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
-                            )
-                        )
-                    )
-                )
+                :: Valid package line found
+                set /a temp_count+=1
+                set "COMPROMISED_PACKAGES[!temp_count!]=!line!"
+                
+                :: Show progress every 100 packages
+                set /a mod=!temp_count!%%100
+                if !mod! equ 0 echo       [+] !temp_count! packages loaded...
             )
         )
     )
     
-    set /a COMPROMISED_PACKAGES_COUNT=!valid_entries!
+    set /a COMPROMISED_PACKAGES_COUNT=!temp_count!
     call :print_blue "[+] Loaded !COMPROMISED_PACKAGES_COUNT! compromised packages from compromised-packages.txt"
 ) else (
     call :print_yellow "[!]  Warning: !packages_file! not found, using embedded package list"
