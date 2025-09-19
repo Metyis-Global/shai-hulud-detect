@@ -257,6 +257,18 @@ shai-hulud-detector.bat test-cases\infected-project
 shai-hulud-detector.bat test-cases\mixed-project
 ```
 
+### Batch Testing (Windows)
+```batch
+# Test on clean project (should show no issues)
+shai-hulud-detector.bat test-cases\clean-project
+
+# Test on infected project (should show multiple issues)
+shai-hulud-detector.bat test-cases\infected-project
+
+# Test on mixed project (should show medium risk issues)
+shai-hulud-detector.bat test-cases\mixed-project
+```
+
 ## How it Works
 
 The script performs these comprehensive checks:
