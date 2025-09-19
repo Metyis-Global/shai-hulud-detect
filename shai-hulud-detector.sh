@@ -234,9 +234,9 @@ check_packages() {
                 local malicious_version="${package_info#*:}"
 
                 # Check both dependencies and devDependencies sections
-                if grep -q "\"$package_name\"" "$package_file" 2>/dev/null; then
+                if grep -q "\"$package_name\":" "$package_file" 2>/dev/null; then
                     local found_version
-                    found_version=$(grep -A1 "\"$package_name\"" "$package_file" 2>/dev/null | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' 2>/dev/null | tr -d '"' | head -1 2>/dev/null) || true
+                    found_version=$(grep -A1 "\"$package_name\":" "$package_file" 2>/dev/null | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' 2>/dev/null | tr -d '"' | head -1 2>/dev/null) || true
                     if [[ -n "$found_version" && "$found_version" == "$malicious_version" ]]; then
                         COMPROMISED_FOUND+=("$package_file:$package_name@$malicious_version")
                     fi
