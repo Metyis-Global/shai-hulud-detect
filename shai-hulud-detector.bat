@@ -166,9 +166,10 @@ if exist "!packages_file!" (
         set "first_char=!line:~0,1!"
         if "!first_char!"=="#" (
             set /a skipped_comments+=1
-        ) else if "!line!"=="" (
-            set /a skipped_empty+=1
         ) else (
+            if "!line!"=="" (
+                set /a skipped_empty+=1
+            ) else (
             :: Enhanced validation - check for proper package:version pattern
             set "test_line=!line!"
             set "test_line=!test_line::=COLON!"
@@ -199,6 +200,7 @@ if exist "!packages_file!" (
                         )
                     )
                 )
+            )
         )
     )
     
@@ -872,32 +874,42 @@ for /r "!scan_dir!" %%f in (*.js *.py *.sh *.json) do (
             if "!file_context!"=="documentation" (
                 :: Documentation mentioning trufflehog is usually legitimate
                 rem Skip - not a security risk
-            ) else if "!file_context!"=="node_modules" (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains trufflehog references in node_modules"
-            ) else if "!file_context!"=="type_definitions" (
-                :: Type definitions mentioning trufflehog are usually legitimate
-                rem Skip - not a security risk
-            ) else if "!file_context!"=="build_output" (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Trufflehog references in build output"
-            ) else if "!file_context!"=="security_tool" (
-                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Legitimate security tool"
-            ) else if "!file_context!"=="test" (
-                :: Skip test files - usually legitimate
-                rem Test files are not a security risk
             ) else (
-                :: Source code with trufflehog references needs investigation
-                echo !content_sample! | findstr /i "subprocess.*curl https\.request" >nul 2>&1
-                if not errorlevel 1 (
+                if "!file_context!"=="node_modules" (
                     set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Suspicious trufflehog execution pattern"
-                    echo       [!] CRITICAL: Trufflehog with execution patterns: %%f
+                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains trufflehog references in node_modules"
                 ) else (
-                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains trufflehog references in source code"
-                    echo       [!] WARNING: Trufflehog reference in source: %%f
+                    if "!file_context!"=="type_definitions" (
+                        :: Type definitions mentioning trufflehog are usually legitimate
+                        rem Skip - not a security risk
+                    ) else (
+                        if "!file_context!"=="build_output" (
+                            set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                            set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Trufflehog references in build output"
+                        ) else (
+                            if "!file_context!"=="security_tool" (
+                                set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                                set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Legitimate security tool"
+                            ) else (
+                                if "!file_context!"=="test" (
+                                    :: Skip test files - usually legitimate
+                                    rem Test files are not a security risk
+                                ) else (
+                                    :: Source code with trufflehog references needs investigation
+                                    echo !content_sample! | findstr /i "subprocess.*curl https\.request" >nul 2>&1
+                                    if not errorlevel 1 (
+                                        set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                                        set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Suspicious trufflehog execution pattern"
+                                        echo       [!] CRITICAL: Trufflehog with execution patterns: %%f
+                                    ) else (
+                                        set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                                        set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Contains trufflehog references in source code"
+                                        echo       [!] WARNING: Trufflehog reference in source: %%f
+                                    )
+                                )
+                            )
+                        )
+                    )
                 )
             )
         )
