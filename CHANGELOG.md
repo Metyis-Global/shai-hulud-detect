@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-09-19
+
+### Added
+- **Multi-Hash Detection**: Added detection for all 7 Shai-Hulud worm variants (V1-V7) using comprehensive SHA-256 hash analysis
+- Enhanced malicious file detection from single hash to complete attack timeline covering September 14-16, 2025
+- Support for detecting evolved worm variants with different bundle.js signatures from Socket.dev's research
+- MALICIOUS_HASHLIST array implementation for efficient multi-hash verification
+
+### Changed
+- Upgraded hash detection from single malicious file to comprehensive worm variant coverage
+- Enhanced file scanning to detect all documented Shai-Hulud bundle.js evolution stages
+- Improved detection accuracy for self-replicating worm variants that emerged during the campaign
+
+### Security
+- Complete coverage of all known Shai-Hulud worm variants based on Socket.dev's authoritative timeline analysis
+- Detection of worm evolution from initial deployment through final stealth improvements
+- Enhanced protection against missed variants that could evade single-hash detection
+
+### Technical Details
+- Implemented MALICIOUS_HASHLIST array containing 7 verified SHA-256 hashes from Socket.dev analysis
+- Added iterative hash checking loop for efficient variant detection
+- Source reference: https://socket.dev/blog/ongoing-supply-chain-attack-targets-crowdstrike-npm-packages
+- Hash variants cover complete worm evolution: V1 (de0e25a3...) through V7 (b74caeaa...)
+
 ## [2.1.0] - 2025-09-19
 
 ### Added
