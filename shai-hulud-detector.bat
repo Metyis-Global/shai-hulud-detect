@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cls
 
 :: Shai-Hulud NPM Supply Chain Attack Detection Script
-:: Version: 2.0.0 (Enhanced with all missing features)
+:: Version: 3.0.0 (Ultimate enhancement with multi-attack coverage)
 :: Detects indicators of compromise from the September 2025 npm attack
 :: Usage: shai-hulud-detector.bat [--paranoid] <directory_to_scan>
 
@@ -66,7 +66,7 @@ for %%i in ("!SCAN_DIR!") do set "SCAN_DIR=%%~fi"
 echo.
 call :print_blue "=============================================="
 call :print_blue "    SHAI-HULUD ATTACK DETECTION TOOL"
-call :print_blue "         Version 2.0.0 Enhanced"
+call :print_blue "         Version 3.0.0 Ultimate"
 call :print_blue "=============================================="
 echo.
 
