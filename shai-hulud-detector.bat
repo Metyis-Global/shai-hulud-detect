@@ -27,6 +27,7 @@ set /a NETWORK_EXFILTRATION_WARNINGS_COUNT=0
 
 :: Initialize variables
 set "PARANOID_MODE=false"
+set "FULL_SCAN=false"
 set "SCAN_DIR="
 
 :: Parse command line arguments
@@ -34,6 +35,11 @@ set "SCAN_DIR="
 if "%~1"=="" goto end_parse
 if "%~1"=="--paranoid" (
     set "PARANOID_MODE=true"
+    shift
+    goto parse_args
+)
+if "%~1"=="--full-scan" (
+    set "FULL_SCAN=true"
     shift
     goto parse_args
 )
@@ -53,15 +59,21 @@ if "!SCAN_DIR!"=="" (
 )
 
 :end_parse
-if "!SCAN_DIR!"=="" goto usage
 
-if not exist "!SCAN_DIR!" (
-    call :print_red "Error: Directory '!SCAN_DIR!' does not exist."
-    exit /b 1
+:: Set up scan directories
+set "TEMP_DIRS_FILE=%TEMP%\shai_hulud_dirs_%RANDOM%.txt"
+
+if "!SCAN_DIR!"=="" (
+    :: Auto-discover project directories
+    call :discover_project_directories
+) else (
+    if not exist "!SCAN_DIR!" (
+        call :print_red "Error: Directory '!SCAN_DIR!' does not exist."
+        exit /b 1
+    )
+    :: Convert to absolute path and save to temp file
+    for %%i in ("!SCAN_DIR!") do echo %%~fi > "!TEMP_DIRS_FILE!"
 )
-
-:: Convert to absolute path
-for %%i in ("!SCAN_DIR!") do set "SCAN_DIR=%%~fi"
 
 echo.
 call :print_blue "=============================================="
@@ -74,8 +86,14 @@ echo.
 call :load_compromised_packages
 echo.
 
+:: Count directories to scan
+set /a DIRS_TO_SCAN=0
+if exist "!TEMP_DIRS_FILE!" (
+    for /f %%l in ('type "!TEMP_DIRS_FILE!" 2^>nul ^| find /c /v ""') do set /a DIRS_TO_SCAN=%%l
+)
+
 call :print_green "[*] Starting Shai-Hulud detection scan..."
-call :print_blue "[+] Target directory: !SCAN_DIR!"
+call :print_blue "[+] Scanning !DIRS_TO_SCAN! directories"
 if "!PARANOID_MODE!"=="true" (
     call :print_yellow "[!] Paranoid mode enabled - includes additional security checks beyond core Shai-Hulud detection"
     echo    Additional checks: typosquatting detection, network exfiltration patterns
@@ -85,27 +103,39 @@ if "!PARANOID_MODE!"=="true" (
 echo    Analyzing JavaScript, TypeScript, JSON files and package configurations...
 echo.
 
-:: Run core Shai-Hulud detection checks
-call :check_workflow_files "!SCAN_DIR!"
-call :check_file_hashes "!SCAN_DIR!"
-call :check_packages "!SCAN_DIR!"
-call :check_postinstall_hooks "!SCAN_DIR!"
-call :check_content "!SCAN_DIR!"
-call :check_trufflehog_activity "!SCAN_DIR!"
-call :check_git_branches "!SCAN_DIR!"
-call :check_shai_hulud_repos "!SCAN_DIR!"
-call :check_package_integrity "!SCAN_DIR!"
+:: Scan each discovered directory
+if exist "!TEMP_DIRS_FILE!" (
+    for /f "delims=" %%d in ('type "!TEMP_DIRS_FILE!"') do (
+        call :print_green "[*] Scanning: %%d"
+        echo ----------------------------------------
 
-:: Run additional security checks only in paranoid mode
-if "!PARANOID_MODE!"=="true" (
-    echo.
-    call :print_blue "[-]+ Checking for typosquatting and homoglyph attacks..."
-    call :check_typosquatting "!SCAN_DIR!"
-    call :print_blue "[-]+ Checking for network exfiltration patterns..."
-    call :check_network_exfiltration "!SCAN_DIR!"
+        :: Run core Shai-Hulud detection checks
+        call :check_workflow_files "%%d"
+        call :check_file_hashes "%%d"
+        call :check_packages "%%d"
+        call :check_postinstall_hooks "%%d"
+        call :check_content "%%d"
+        call :check_trufflehog_activity "%%d"
+        call :check_git_branches "%%d"
+        call :check_shai_hulud_repos "%%d"
+        call :check_package_integrity "%%d"
+
+        :: Run additional security checks only in paranoid mode
+        if "!PARANOID_MODE!"=="true" (
+            echo.
+            call :print_blue "[-]+ Checking for typosquatting and homoglyph attacks..."
+            call :check_typosquatting "%%d"
+            call :print_blue "[-]+ Checking for network exfiltration patterns..."
+            call :check_network_exfiltration "%%d"
+        )
+
+        echo.
+    )
 )
 
-echo.
+:: Clean up temp file
+if exist "!TEMP_DIRS_FILE!" del "!TEMP_DIRS_FILE!"
+
 call :print_green "[*] Scanning completed! Generating report..."
 echo.
 
@@ -114,16 +144,112 @@ call :generate_report "!PARANOID_MODE!"
 goto :eof
 
 :usage
-echo Usage: %0 [--paranoid] ^<directory_to_scan^>
+echo Usage: %0 [--paranoid] [--full-scan] [directory_to_scan]
 echo.
 echo OPTIONS:
 echo   --paranoid    Enable additional security checks (typosquatting, network patterns)
 echo                 These are general security features, not specific to Shai-Hulud
+echo   --full-scan   Include cache directories (.cache, node_modules\.cache, etc.) in auto-discovery
+echo                 By default, cache directories are excluded for performance
+echo.
+echo ARGUMENTS:
+echo   directory_to_scan    Directory to scan (optional, defaults to auto-discovery from home)
 echo.
 echo EXAMPLES:
-echo   %0 C:\path\to\your\project                    # Core Shai-Hulud detection only
-echo   %0 --paranoid C:\path\to\your\project         # Core + advanced security checks
+echo   %0                                          # Auto-discover and scan all projects from home
+echo   %0 --full-scan                              # Auto-discover including cache directories
+echo   %0 C:\path\to\your\project                  # Core Shai-Hulud detection on specific directory
+echo   %0 --paranoid                               # Auto-discover with advanced security checks
+echo   %0 --paranoid --full-scan                   # Full scan with advanced security checks
+echo   %0 --paranoid C:\path\to\your\project       # Core + advanced security checks on specific directory
 exit /b 1
+
+:: Auto-discover project directories from home directory
+:discover_project_directories
+if "!FULL_SCAN!"=="true" (
+    call :print_blue "[*] Auto-discovering project directories from %USERPROFILE% (full scan including cache directories)..."
+) else (
+    call :print_blue "[*] Auto-discovering project directories from %USERPROFILE% (excluding cache directories)..."
+)
+
+:: Create temporary file to store discovered directories
+set "TEMP_DIRS_FILE=%TEMP%\shai_hulud_dirs_%RANDOM%.txt"
+if exist "!TEMP_DIRS_FILE!" del "!TEMP_DIRS_FILE!"
+
+:: Common project indicators
+set "PROJECT_INDICATORS=package.json package-lock.json yarn.lock node_modules .git Cargo.toml requirements.txt pom.xml build.gradle composer.json Gemfile go.mod"
+
+:: Search for common project files and get their directories
+for /f "delims=" %%f in ('dir /s /b "%USERPROFILE%\package.json" 2^>nul') do (
+    call :filter_cache_dirs "%%f" "%%~dpf"
+)
+for /f "delims=" %%f in ('dir /s /b "%USERPROFILE%\.git" 2^>nul') do (
+    call :filter_cache_dirs "%%f" "%%~dpf"
+)
+for /f "delims=" %%f in ('dir /s /b "%USERPROFILE%\requirements.txt" 2^>nul') do (
+    call :filter_cache_dirs "%%f" "%%~dpf"
+)
+
+:: Remove duplicates and create final list
+if exist "!TEMP_DIRS_FILE!" (
+    sort "!TEMP_DIRS_FILE!" | findstr /v "^$" > "!TEMP_DIRS_FILE!.sorted"
+    if exist "!TEMP_DIRS_FILE!.sorted" (
+        move "!TEMP_DIRS_FILE!.sorted" "!TEMP_DIRS_FILE!" >nul
+    )
+)
+
+:: Count discovered directories
+set /a DISCOVERED_COUNT=0
+if exist "!TEMP_DIRS_FILE!" (
+    for /f %%l in ('type "!TEMP_DIRS_FILE!" 2^>nul ^| find /c /v ""') do set /a DISCOVERED_COUNT=%%l
+)
+
+if !DISCOVERED_COUNT! equ 0 (
+    call :print_yellow "[!] No project directories found in %USERPROFILE%"
+    call :print_blue "    Falling back to scanning home directory directly"
+    echo %USERPROFILE% > "!TEMP_DIRS_FILE!"
+    set /a DISCOVERED_COUNT=1
+) else (
+    call :print_green "[+] Found !DISCOVERED_COUNT! project directories"
+    if exist "!TEMP_DIRS_FILE!" (
+        for /f "delims=" %%d in (type "!TEMP_DIRS_FILE!") do (
+            echo    [*] %%d
+        )
+    )
+)
+
+goto :eof
+
+:: Filter cache directories based on FULL_SCAN setting
+:filter_cache_dirs
+set "file_path=%~1"
+set "dir_path=%~2"
+
+:: Always skip AppData
+echo %file_path% | findstr /i "AppData" >nul && goto :eof
+
+:: If FULL_SCAN is true, include everything (except AppData)
+if "!FULL_SCAN!"=="true" (
+    echo %dir_path% >> "!TEMP_DIRS_FILE!"
+    goto :eof
+)
+
+:: Skip cache directories if not doing full scan
+echo %file_path% | findstr /i "\.cache" >nul && goto :eof
+echo %file_path% | findstr /i "node_modules\\\.cache" >nul && goto :eof
+echo %file_path% | findstr /i "\.npm" >nul && goto :eof
+echo %file_path% | findstr /i "\.yarn" >nul && goto :eof
+echo %file_path% | findstr /i "__pycache__" >nul && goto :eof
+echo %file_path% | findstr /i "\\venv\\" >nul && goto :eof
+echo %file_path% | findstr /i "\.venv" >nul && goto :eof
+echo %file_path% | findstr /i "\\target\\" >nul && goto :eof
+echo %file_path% | findstr /i "\\build\\" >nul && goto :eof
+echo %file_path% | findstr /i "\\dist\\" >nul && goto :eof
+echo %file_path% | findstr /i "Temp" >nul && goto :eof
+
+:: If not filtered out, add to temp file
+echo %dir_path% >> "!TEMP_DIRS_FILE!"
+goto :eof
 
 :print_green
 echo %~1
