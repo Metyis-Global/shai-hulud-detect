@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2025-09-19
+
+### Added
+- **Enhanced Error Handling**: Added robust error handling for grep pipelines to prevent script hangs (merged PR #13)
+- **pnpm Support**: Added comprehensive pnpm-lock.yaml support with YAML-to-JSON transformation capability
+- Shell reliability improvements with `|| true` operators and `2>/dev/null` redirections
+- Error prevention for strict `set -eo pipefail` environments
+
+### Changed
+- Improved script reliability across different shell configurations and package manager environments
+- Enhanced lockfile detection to support npm (package-lock.json), yarn (yarn.lock), and pnpm (pnpm-lock.yaml) formats
+- Better error handling prevents silent failures that could cause script hangs
+
+### Fixed
+- Script hanging issues when grep commands fail in strict shell environments
+- Silent pipeline failures that could prevent complete package detection
+- Compatibility issues with different bash configurations and `pipefail` settings
+
+### Technical Details
+- Added `transform_pnpm_yaml()` function to convert YAML lockfiles to pseudo-JSON for unified processing
+- Implemented temporary file management for pnpm lockfile transformation
+- Enhanced find command to detect all three major lockfile formats simultaneously
+
 ## [2.0.0] - 2025-09-18
 
 ### Added
