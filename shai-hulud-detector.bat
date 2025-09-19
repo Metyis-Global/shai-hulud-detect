@@ -184,15 +184,19 @@ if exist "!packages_file!" (
                     if !valid_entries! leq 20 (
                         set /a mod=!valid_entries!%%10
                         if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
-                    ) else if !valid_entries! leq 100 (
-                        set /a mod=!valid_entries!%%20
-                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
-                    ) else if !valid_entries! leq 500 (
-                        set /a mod=!valid_entries!%%50
-                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
                     ) else (
-                        set /a mod=!valid_entries!%%100
-                        if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
+                        if !valid_entries! leq 100 (
+                            set /a mod=!valid_entries!%%20
+                            if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
+                        ) else (
+                            if !valid_entries! leq 500 (
+                                set /a mod=!valid_entries!%%50
+                                if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
+                            ) else (
+                                set /a mod=!valid_entries!%%100
+                                if !mod! equ 0 echo       [+] !valid_entries! packages loaded...
+                            )
+                        )
                     )
                 )
         )
