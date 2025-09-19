@@ -74,7 +74,7 @@ shai-hulud-detector.bat --paranoid C:\path\to\your\project
 
 ### High Risk Indicators
 - **Malicious workflow files**: `shai-hulud-workflow.yml` files in `.github/workflows/`
-- **Known malicious file hashes**: Files matching SHA-256 hash `46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09`
+- **Known malicious file hashes**: Files matching any of 7 SHA-256 hashes from different Shai-Hulud worm variants (V1-V7), sourced from [Socket.dev's comprehensive attack analysis](https://socket.dev/blog/ongoing-supply-chain-attack-targets-crowdstrike-npm-packages)
 - **Compromised package versions**: Specific versions of 571+ packages from multiple attacks
 - **Suspicious postinstall hooks**: Package.json files with postinstall scripts containing curl, wget, or eval commands
 - **Trufflehog activity**: Files containing trufflehog references or credential scanning patterns
@@ -264,7 +264,7 @@ The script performs these comprehensive checks:
 
 1. **Package Database Loading**: Loads the complete list of 571+ compromised packages from `compromised-packages.txt`
 2. **Workflow Detection**: Searches for `shai-hulud-workflow.yml` files in `.github/workflows/`
-3. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against known malicious hashes
+3. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against 7 known malicious bundle.js variants representing the complete evolution of the Shai-Hulud worm (V1-V7)
 4. **Package Analysis**: Parses `package.json` files for specific compromised versions and affected namespaces
 5. **Postinstall Hook Detection**: Identifies suspicious postinstall scripts that could be used for malware propagation
 6. **Content Scanning**: Greps for suspicious URLs, webhook endpoints, and malicious patterns
@@ -276,7 +276,7 @@ The script performs these comprehensive checks:
 
 ## Limitations
 
-- **Hash Detection**: Only detects files with the exact known malicious hash
+- **Hash Detection**: Only detects files with exact matches to the 7 known malicious bundle.js hashes
 - **Package Versions**: Detects specific compromised versions and namespace warnings, but new compromised versions may not be detected
 - **False Positives**: Legitimate use of webhook.site, Trufflehog for security, or postinstall hooks will trigger alerts
 - **Worm Evolution**: The self-replicating nature means new variants may emerge with different signatures
