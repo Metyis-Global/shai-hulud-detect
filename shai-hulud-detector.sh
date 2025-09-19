@@ -952,8 +952,7 @@ generate_report() {
         print_status "$RED" "🚨 HIGH RISK: Malicious workflow files detected:"
         for file in "${WORKFLOW_FILES[@]}"; do
             echo "   - $file"
-            show_file_preview "$file" "Known malicious workflow filename"
-            ((high_risk++))
+            show_file_preview "$file" "HIGH RISK: Known malicious workflow filename"
             high_risk=$((high_risk+1))
         done
     fi
@@ -966,8 +965,7 @@ generate_report() {
             local hash="${entry#*:}"
             echo "   - $file_path"
             echo "     Hash: $hash"
-            show_file_preview "$file_path" "File matches known malicious SHA-256 hash"
-            ((high_risk++))
+            show_file_preview "$file_path" "HIGH RISK: File matches known malicious SHA-256 hash"
             high_risk=$((high_risk+1))
         done
     fi
@@ -980,8 +978,7 @@ generate_report() {
             local package_info="${entry#*:}"
             echo "   - Package: $package_info"
             echo "     Found in: $file_path"
-            show_file_preview "$file_path" "Contains compromised package version: $package_info"
-            ((high_risk++))
+            show_file_preview "$file_path" "HIGH RISK: Contains compromised package version: $package_info"
             high_risk=$((high_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: These specific package versions are known to be compromised.${NC}"
@@ -1073,8 +1070,7 @@ generate_report() {
             local hook_info="${entry#*:}"
             echo "   - Hook: $hook_info"
             echo "     Found in: $file_path"
-            show_file_preview "$file_path" "Contains suspicious postinstall hook: $hook_info"
-            ((high_risk++))
+            show_file_preview "$file_path" "HIGH RISK: Contains suspicious postinstall hook: $hook_info"
             high_risk=$((high_risk+1))
         done
         echo -e "   ${YELLOW}NOTE: Postinstall hooks can execute arbitrary code during package installation.${NC}"
