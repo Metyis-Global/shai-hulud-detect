@@ -172,7 +172,7 @@ check_file_hashes() {
             done
         fi
         filesChecked=$((filesChecked+1))
-        echo -ne "$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)\r"
+        echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
 
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 2>/dev/null)
 }
@@ -280,7 +280,7 @@ check_packages() {
         fi
 
         filesChecked=$((filesChecked+1))
-        echo -ne "$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)\r"
+        echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
 
     done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
 }
