@@ -1,5 +1,5 @@
 # Shai-Hulud NPM Supply Chain Attack Detection Script (PowerShell)
-# Version: 1.2.0
+# Version: 1.2.1
 # Detects indicators of compromise from the September 2025 npm attack
 # Usage: .\shai-hulud-detector.ps1 [-Path] <directory_to_scan> [-Paranoid]
 
@@ -123,7 +123,7 @@ function Show-FilePreview {
 }
 
 # Known malicious file hashes (source: https://socket.dev/blog/ongoing-supply-chain-attack-targets-crowdstrike-npm-packages)
-$MALICIOUS_HASHLIST = @(
+$MaliciousHashes = @(
     "de0e25a3e6c1e1e5998b306b7141b3dc4c0088da9d7bb47c1c00c91e6e4f85d6",
     "81d2a004a1bca6ef87a1caf7d0e0b355ad1764238e40ff6d1b1cb77ad4f595c3",
     "83a650ce44b2a9854802a7fb4c202877815274c129af49e6c2d1d5d5d55c501e",
@@ -242,7 +242,7 @@ function Check-FileHashes {
     
     foreach ($file in $files) {
         $fileHash = Get-FileHashSHA256 -FilePath $file.FullName
-        if ($fileHash -and $MALICIOUS_HASHLIST -contains $fileHash) {
+        if ($fileHash -and $MaliciousHashes -contains $fileHash) {
             $global:MALICIOUS_HASHES += "$($file.FullName):$fileHash"
         }
     }
@@ -657,8 +657,10 @@ function Check-PackageIntegrity {
             $integrityPattern = '"integrity"\s*:\s*"sha[0-9]+\-[A-Za-z0-9+/=]+"'
             $suspiciousHashes = ([regex]::Matches($content, $integrityPattern)).Count
             
-            # Note: We're counting integrity hashes but not using the count for now
-            # This matches the bash script behavior
+            # Record integrity heuristic if count seems unusually high (MEDIUM-risk)
+            if ($suspiciousHashes -gt 50) {
+                $global:INTEGRITY_ISSUES += "${originalFile}:High integrity hash count detected ($suspiciousHashes) - potential tampering indicator"
+            }
             
             # Check for recently modified lockfiles with @ctrl packages
             if ($content -match '@ctrl') {
@@ -889,7 +891,7 @@ function Check-NetworkExfiltration {
                 }
                 
                 # Check for WebSocket connections to external endpoints
-                if ($content -match 'ws://' -or $content -match 'wss://') {
+                if ($content -match 'wss?://') {
                     $wsEndpoints = [regex]::Matches($content, 'wss?://[^"''\s]+')
                     foreach ($match in $wsEndpoints) {
                         $endpoint = $match.Value
@@ -907,11 +909,11 @@ function Check-NetworkExfiltration {
                 
                 # Check for btoa/atob near network operations
                 if ($file.FullName -notmatch '\\(vendor|node_modules)\\' -and $file.Name -notmatch '\.min\.js$') {
-                    # Check for btoa (base64 encoding)
-                    if ($content -match 'btoa\s*\(') {
+                    # Check for btoa (base64 encoding) or atob (base64 decoding)
+                    if ($content -match 'btoa\s*\(' -or $content -match 'atob\s*\(') {
                         $lines = $content -split "`n"
                         for ($i = 0; $i -lt $lines.Count; $i++) {
-                            if ($lines[$i] -match 'btoa\s*\(') {
+                            if ($lines[$i] -match 'btoa\s*\(' -or $lines[$i] -match 'atob\s*\(') {
                                 $lineNum = $i + 1
                                 # Check context (3 lines before and after)
                                 $contextStart = [Math]::Max(0, $i - 3)
