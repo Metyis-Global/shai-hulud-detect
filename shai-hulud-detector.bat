@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cls
 
 :: Shai-Hulud NPM Supply Chain Attack Detection Script
-:: Version: 4.0.0 - Full Feature Parity with Shell Script
+:: Version: 4.0.1 - Fixed file path handling and syntax errors
 :: Detects indicators of compromise from the September 2025 npm attack
 :: Usage: shai-hulud-detector.bat [--paranoid] <directory_to_scan>
 
@@ -67,7 +67,7 @@ for %%i in ("!SCAN_DIR!") do set "SCAN_DIR=%%~fi"
 echo.
 call :print_blue "=============================================="
 call :print_blue "    SHAI-HULUD ATTACK DETECTION TOOL"
-call :print_blue "    Version 4.0.0 - Full Feature Parity"
+call :print_blue "    Version 4.0.1 - Fixed Path Handling"
 call :print_blue "=============================================="
 echo.
 
@@ -372,6 +372,9 @@ if exist "!temp_package_file!" (
         :: Read package.json content and check for compromised packages
         set "current_file=%%f"
         
+        :: Ensure we have the full path
+        for %%i in ("%%f") do set "current_file=%%~fi"
+        
         :: Enhanced approach - check against full compromised package database
         :: Process all loaded compromised packages
         for /l %%p in (1,1,!COMPROMISED_PACKAGES_COUNT!) do (
@@ -383,23 +386,23 @@ if exist "!temp_package_file!" (
                 set "malicious_version=%%y"
                 
                 :: Check if package.json contains this package name
-                findstr /c:"\"!package_name!\"" "!current_file!" >nul 2>&1
+                type "!current_file!" 2>nul | findstr /c:"\"!package_name!\"" >nul 2>&1
                 if not errorlevel 1 (
                     :: Check for exact version match
-                    findstr /c:"\"!package_name!\": \"!malicious_version!\"" "!current_file!" >nul 2>&1
+                    type "!current_file!" 2>nul | findstr /c:"\"!package_name!\": \"!malicious_version!\"" >nul 2>&1
                     if not errorlevel 1 (
                         set /a COMPROMISED_FOUND_COUNT+=1
                         set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@!malicious_version!"
                         echo       [!] FOUND compromised package: !package_name!@!malicious_version!
                     ) else (
                         :: Check for range patterns like "^4.1.0" or "~4.1.0"
-                        findstr /c:"\"!package_name!\": \"^!malicious_version!\"" "!current_file!" >nul 2>&1
+                        type "!current_file!" 2>nul | findstr /c:"\"!package_name!\": \"^!malicious_version!\"" >nul 2>&1
                         if not errorlevel 1 (
                             set /a COMPROMISED_FOUND_COUNT+=1
                             set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@^!malicious_version!"
                             echo       [!] FOUND compromised package range: !package_name!@^!malicious_version!
                         ) else (
-                            findstr /c:"\"!package_name!\": \"~!malicious_version!\"" "!current_file!" >nul 2>&1
+                            type "!current_file!" 2>nul | findstr /c:"\"!package_name!\": \"~!malicious_version!\"" >nul 2>&1
                             if not errorlevel 1 (
                                 set /a COMPROMISED_FOUND_COUNT+=1
                                 set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@~!malicious_version!"
@@ -413,13 +416,13 @@ if exist "!temp_package_file!" (
         
         :: Check for suspicious namespaces (simplified) - avoid the drive specification error
         set "check_file=!current_file!"
-        findstr /c:"@ctrl/" "!check_file!" >nul 2>&1
+        type "!check_file!" 2>nul | findstr /c:"@ctrl/" >nul 2>&1
         if not errorlevel 1 (
             set /a NAMESPACE_WARNINGS_COUNT+=1
             set "NAMESPACE_WARNINGS[!NAMESPACE_WARNINGS_COUNT!]=!check_file!:Contains packages from compromised namespace: @ctrl"
         )
         
-        findstr /c:"@crowdstrike/" "!check_file!" >nul 2>&1
+        type "!check_file!" 2>nul | findstr /c:"@crowdstrike/" >nul 2>&1
         if not errorlevel 1 (
             set /a NAMESPACE_WARNINGS_COUNT+=1
             set "NAMESPACE_WARNINGS[!NAMESPACE_WARNINGS_COUNT!]=!check_file!:Contains packages from compromised namespace: @crowdstrike"
@@ -907,14 +910,15 @@ for /r "!scan_dir!" %%f in (*.js *.py *.sh *.json) do (
                     set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
                     set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Credential patterns with exfiltration"
                     echo       [!] CRITICAL: Credential harvesting with exfiltration in: %%f
-                        ) else (
-                            set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                            set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Credential scanning patterns"
-                            echo       [!] WARNING: Credential scanning patterns in: %%f
-                        )
+                ) else (
+                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Credential scanning patterns"
+                    echo       [!] WARNING: Credential scanning patterns in: %%f
+                )
                     )
                 )
             )
+        )
         )
     )
 )
