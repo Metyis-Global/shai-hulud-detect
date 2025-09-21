@@ -1,5 +1,5 @@
 # Shai-Hulud NPM Supply Chain Attack Detection Script (PowerShell)
-# Version: 1.0.0
+# Version: 1.1.0
 # Detects indicators of compromise from the September 2025 npm attack
 # Usage: .\shai-hulud-detector.ps1 [-Path] <directory_to_scan> [-Paranoid]
 
@@ -577,6 +577,13 @@ function Check-PackageIntegrity {
                 }
             }
             
+            # Check for suspicious integrity hash patterns (may indicate tampering)
+            $integrityPattern = '"integrity"\s*:\s*"sha[0-9]+\-[A-Za-z0-9+/=]+"'
+            $suspiciousHashes = ([regex]::Matches($content, $integrityPattern)).Count
+            
+            # Note: We're counting integrity hashes but not using the count for now
+            # This matches the bash script behavior
+            
             # Check for recently modified lockfiles with @ctrl packages
             if ($content -match '@ctrl') {
                 $fileAge = (Get-Date) - $lockFile.LastWriteTime
@@ -798,6 +805,11 @@ function Check-NetworkExfiltration {
                             break
                         }
                     }
+                }
+                
+                # Check for DNS-over-HTTPS patterns
+                if ($content -match 'dns-query' -or $content -match 'application/dns-message') {
+                    $global:NETWORK_EXFILTRATION_WARNINGS += "$($file.FullName):DNS-over-HTTPS pattern detected"
                 }
                 
                 # Check for WebSocket connections
