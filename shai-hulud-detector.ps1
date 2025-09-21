@@ -1,5 +1,5 @@
 # Shai-Hulud NPM Supply Chain Attack Detection Script (PowerShell)
-# Version: 1.1.0
+# Version: 1.2.0
 # Detects indicators of compromise from the September 2025 npm attack
 # Usage: .\shai-hulud-detector.ps1 [-Path] <directory_to_scan> [-Paranoid]
 
@@ -122,8 +122,16 @@ function Show-FilePreview {
     }
 }
 
-# Known malicious file hash
-$MALICIOUS_HASH = "46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09"
+# Known malicious file hashes (source: https://socket.dev/blog/ongoing-supply-chain-attack-targets-crowdstrike-npm-packages)
+$MALICIOUS_HASHLIST = @(
+    "de0e25a3e6c1e1e5998b306b7141b3dc4c0088da9d7bb47c1c00c91e6e4f85d6",
+    "81d2a004a1bca6ef87a1caf7d0e0b355ad1764238e40ff6d1b1cb77ad4f595c3",
+    "83a650ce44b2a9854802a7fb4c202877815274c129af49e6c2d1d5d5d55c501e",
+    "4b2399646573bb737c4969563303d8ee2e9ddbd1b271f1ca9e35ea78062538db",
+    "dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c",
+    "46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09",
+    "b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777"
+)
 
 # Global arrays to store findings
 $global:WORKFLOW_FILES = @()
@@ -234,7 +242,7 @@ function Check-FileHashes {
     
     foreach ($file in $files) {
         $fileHash = Get-FileHashSHA256 -FilePath $file.FullName
-        if ($fileHash -eq $MALICIOUS_HASH) {
+        if ($fileHash -and $MALICIOUS_HASHLIST -contains $fileHash) {
             $global:MALICIOUS_HASHES += "$($file.FullName):$fileHash"
         }
     }
@@ -553,16 +561,84 @@ function Check-ShaiHuludRepos {
     }
 }
 
+# Transform pnpm-lock.yaml to pseudo-package-lock format
+function Transform-PnpmYaml {
+    param([string]$FilePath)
+    
+    $output = @{
+        packages = @{}
+    }
+    
+    $lines = Get-Content -Path $FilePath
+    $depth = 0
+    $path = @()
+    
+    foreach ($line in $lines) {
+        # Find indentation
+        $indentMatch = [regex]::Match($line, '^(\s*)')
+        $currentDepth = $indentMatch.Groups[1].Value.Length / 2
+        
+        # Remove comments and trim
+        $line = $line -replace '#.*$', ''
+        $line = $line.Trim()
+        
+        # Skip empty lines
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        
+        # Split into key/value
+        if ($line -match '^([^:]+):(.*)$') {
+            $key = $matches[1].Trim()
+            $val = $matches[2].Trim()
+            
+            # Update path
+            if ($currentDepth -ge $path.Count) {
+                $path += $key
+            } else {
+                $path[$currentDepth] = $key
+                $path = $path[0..$currentDepth]
+            }
+            
+            # We're interested in packages section at depth 2
+            if ($path.Count -gt 0 -and $path[0] -eq 'packages' -and $currentDepth -eq 2) {
+                # Remove quotes
+                $key = $key.Trim("'", '"')
+                
+                # Extract name and version
+                if ($key -match '^(.+)@([^@]+)$') {
+                    $name = $matches[1]
+                    $version = $matches[2]
+                    $output.packages[$name] = @{ version = $version }
+                }
+            }
+        }
+    }
+    
+    return $output | ConvertTo-Json -Depth 10
+}
+
 # Check package integrity
 function Check-PackageIntegrity {
     param([string]$ScanDir)
     
     Write-ColorOutput "Checking package lock files for integrity issues..." -Color Blue
     
-    $lockFiles = Get-ChildItem -Path $ScanDir -Include "package-lock.json","yarn.lock" -Recurse -File -ErrorAction SilentlyContinue
+    $lockFiles = Get-ChildItem -Path $ScanDir -Include "package-lock.json","yarn.lock","pnpm-lock.yaml" -Recurse -File -ErrorAction SilentlyContinue
     
     foreach ($lockFile in $lockFiles) {
+        $originalFile = $lockFile.FullName
         $content = Get-Content -Path $lockFile.FullName -Raw -ErrorAction SilentlyContinue
+        
+        # Transform pnpm-lock.yaml if needed
+        if ($lockFile.Name -eq "pnpm-lock.yaml" -and $content) {
+            try {
+                $content = Transform-PnpmYaml -FilePath $lockFile.FullName
+            }
+            catch {
+                Write-Verbose "Failed to transform pnpm-lock.yaml: $_"
+                continue
+            }
+        }
+        
         if ($content) {
             # Check for compromised packages in lockfiles
             foreach ($packageInfo in $script:COMPROMISED_PACKAGES) {
@@ -572,7 +648,7 @@ function Check-PackageIntegrity {
                 
                 if ($content -match [regex]::Escape($packageName)) {
                     if ($content -match [regex]::Escape($maliciousVersion)) {
-                        $global:INTEGRITY_ISSUES += "$($lockFile.FullName):Compromised package in lockfile: $packageName@$maliciousVersion"
+                        $global:INTEGRITY_ISSUES += "${originalFile}:Compromised package in lockfile: $packageName@$maliciousVersion"
                     }
                 }
             }
@@ -588,7 +664,7 @@ function Check-PackageIntegrity {
             if ($content -match '@ctrl') {
                 $fileAge = (Get-Date) - $lockFile.LastWriteTime
                 if ($fileAge.TotalDays -lt 30) {
-                    $global:INTEGRITY_ISSUES += "$($lockFile.FullName):Recently modified lockfile contains @ctrl packages (potential worm activity)"
+                    $global:INTEGRITY_ISSUES += "${originalFile}:Recently modified lockfile contains @ctrl packages (potential worm activity)"
                 }
             }
         }
@@ -812,20 +888,48 @@ function Check-NetworkExfiltration {
                     $global:NETWORK_EXFILTRATION_WARNINGS += "$($file.FullName):DNS-over-HTTPS pattern detected"
                 }
                 
-                # Check for WebSocket connections
-                if ($content -match 'new\s+WebSocket\s*\(' -or $content -match '\.connect\s*\(' -or $content -match 'socket\.io') {
-                    $lines = $content -split "`n"
-                    for ($i = 0; $i -lt $lines.Count; $i++) {
-                        if ($lines[$i] -match 'new\s+WebSocket\s*\(' -or $lines[$i] -match '\.connect\s*\(' -or $lines[$i] -match 'socket\.io') {
-                            # Skip if it's connecting to localhost or relative paths
-                            if ($lines[$i] -notmatch 'localhost|127\.0\.0\.1|ws://\s*["'']?/' -and $lines[$i] -notmatch '^\s*(#|//)') {
+                # Check for WebSocket connections to external endpoints
+                if ($content -match 'ws://' -or $content -match 'wss://') {
+                    $wsEndpoints = [regex]::Matches($content, 'wss?://[^"''\s]+')
+                    foreach ($match in $wsEndpoints) {
+                        $endpoint = $match.Value
+                        # Flag WebSocket connections that aren't localhost
+                        if ($endpoint -notmatch 'localhost|127\.0\.0\.1') {
+                            $global:NETWORK_EXFILTRATION_WARNINGS += "$($file.FullName):WebSocket connection to external endpoint: $endpoint"
+                        }
+                    }
+                }
+                
+                # Check for suspicious HTTP headers
+                if ($content -match 'X-Exfiltrate|X-Data-Export|X-Credential') {
+                    $global:NETWORK_EXFILTRATION_WARNINGS += "$($file.FullName):Suspicious HTTP headers detected"
+                }
+                
+                # Check for btoa/atob near network operations
+                if ($file.FullName -notmatch '\\(vendor|node_modules)\\' -and $file.Name -notmatch '\.min\.js$') {
+                    # Check for btoa (base64 encoding)
+                    if ($content -match 'btoa\s*\(') {
+                        $lines = $content -split "`n"
+                        for ($i = 0; $i -lt $lines.Count; $i++) {
+                            if ($lines[$i] -match 'btoa\s*\(') {
                                 $lineNum = $i + 1
-                                $snippet = $lines[$i].Trim()
-                                if ($snippet.Length -gt 80) {
-                                    $snippet = $snippet.Substring(0, 77) + "..."
+                                # Check context (3 lines before and after)
+                                $contextStart = [Math]::Max(0, $i - 3)
+                                $contextEnd = [Math]::Min($lines.Count - 1, $i + 3)
+                                $context = $lines[$contextStart..$contextEnd] -join "`n"
+                                
+                                # Check if near network operations
+                                if ($context -match 'fetch|XMLHttpRequest|axios|\$\.ajax|http\.request') {
+                                    # Make sure it's not just legitimate auth
+                                    if ($context -notmatch 'Authorization:|Basic |Bearer ') {
+                                        $snippet = $lines[$i].Trim()
+                                        if ($snippet.Length -gt 80) {
+                                            $snippet = $snippet.Substring(0, 77) + "..."
+                                        }
+                                        $global:NETWORK_EXFILTRATION_WARNINGS += "$($file.FullName):Suspicious base64 encoding near network operation at line ${lineNum}: $snippet"
+                                        break
+                                    }
                                 }
-                                $global:NETWORK_EXFILTRATION_WARNINGS += "$($file.FullName):WebSocket connection detected at line ${lineNum}: $snippet"
-                                break
                             }
                         }
                     }
