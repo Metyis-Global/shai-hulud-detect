@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2025-09-19
+
+### Added
+- **Missing Socket.dev Packages**: Added 34 additional compromised packages from Socket.dev analysis that were previously missed
+- @ctrl packages: Added 9 additional package versions
+- @nativescript-community packages: Added 8 missing package versions  
+- @rxap packages: Added 2 package versions
+- Standalone packages: Added 15 additional packages
+
+### Changed
+- Updated compromised-packages.txt with comprehensive Socket.dev package list for complete coverage
+- Enhanced package organization with clear section headers for different package groups
+- Improved documentation to reflect complete coverage of all known compromised packages
+
+### Security
+- Ensures detection of all compromised packages identified across multiple security research sources
+- Provides comprehensive protection against packages that may have been missed in previous analyses
+- Complete coverage of Socket.dev's authoritative package analysis
+
+## [2.2.0] - 2025-09-19
+
+### Added
+- **Multi-Hash Detection**: Added detection for all 7 Shai-Hulud worm variants (V1-V7) using comprehensive SHA-256 hash analysis
+- Enhanced malicious file detection from single hash to complete attack timeline covering September 14-16, 2025
+- Support for detecting evolved worm variants with different bundle.js signatures from Socket.dev's research
+- MALICIOUS_HASHLIST array implementation for efficient multi-hash verification
+
+### Changed
+- Upgraded hash detection from single malicious file to comprehensive worm variant coverage
+- Enhanced file scanning to detect all documented Shai-Hulud bundle.js evolution stages
+- Improved detection accuracy for self-replicating worm variants that emerged during the campaign
+
+### Security
+- Complete coverage of all known Shai-Hulud worm variants based on Socket.dev's authoritative timeline analysis
+- Detection of worm evolution from initial deployment through final stealth improvements
+- Enhanced protection against missed variants that could evade single-hash detection
+
+### Technical Details
+- Implemented MALICIOUS_HASHLIST array containing 7 verified SHA-256 hashes from Socket.dev analysis
+- Added iterative hash checking loop for efficient variant detection
+- Source reference: https://socket.dev/blog/ongoing-supply-chain-attack-targets-crowdstrike-npm-packages
+- Hash variants cover complete worm evolution: V1 (de0e25a3...) through V7 (b74caeaa...)
+
+## [2.1.0] - 2025-09-19
+
+### Added
+- **Enhanced Error Handling**: Added robust error handling for grep pipelines to prevent script hangs (merged PR #13)
+- **pnpm Support**: Added comprehensive pnpm-lock.yaml support with YAML-to-JSON transformation capability
+- Shell reliability improvements with `|| true` operators and `2>/dev/null` redirections
+- Error prevention for strict `set -eo pipefail` environments
+
+### Changed
+- Improved script reliability across different shell configurations and package manager environments
+- Enhanced lockfile detection to support npm (package-lock.json), yarn (yarn.lock), and pnpm (pnpm-lock.yaml) formats
+- Better error handling prevents silent failures that could cause script hangs
+
+### Fixed
+- Script hanging issues when grep commands fail in strict shell environments
+- Silent pipeline failures that could prevent complete package detection
+- Compatibility issues with different bash configurations and `pipefail` settings
+
+### Technical Details
+- Added `transform_pnpm_yaml()` function to convert YAML lockfiles to pseudo-JSON for unified processing
+- Implemented temporary file management for pnpm lockfile transformation
+- Enhanced find command to detect all three major lockfile formats simultaneously
+
 ## [2.0.0] - 2025-09-18
 
 ### Added

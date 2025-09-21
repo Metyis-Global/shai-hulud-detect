@@ -74,7 +74,7 @@ shai-hulud-detector.bat --paranoid C:\path\to\your\project
 
 ### High Risk Indicators
 - **Malicious workflow files**: `shai-hulud-workflow.yml` files in `.github/workflows/`
-- **Known malicious file hashes**: Files matching SHA-256 hash `46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09`
+- **Known malicious file hashes**: Files matching any of 7 SHA-256 hashes from different Shai-Hulud worm variants (V1-V7), sourced from [Socket.dev's comprehensive attack analysis](https://socket.dev/blog/ongoing-supply-chain-attack-targets-crowdstrike-npm-packages)
 - **Compromised package versions**: Specific versions of 571+ packages from multiple attacks
 - **Suspicious postinstall hooks**: Package.json files with postinstall scripts containing curl, wget, or eval commands
 - **Trufflehog activity**: Files containing trufflehog references or credential scanning patterns
@@ -141,24 +141,10 @@ Check these security advisories regularly for newly discovered compromised packa
 
 ## Latest Updates
 
-- **2025-09-18 v3.0.0**: **Critical Bug Fixes & Optimization** - Complete Windows Batch script stabilization
-   - **🔧 Critical Fixes**: Eliminated all "drive specified" errors and syntax issues that prevented script execution
-   - **⚡ Performance**: Enhanced temp file approach for reliable Windows file processing
-   - **🛡️ Full Functionality**: All core Shai-Hulud detection features now working perfectly on Windows
-   - **📊 Paranoid Mode**: Fixed typosquatting and network exfiltration detection with proper error handling
-   - **✅ Verified**: Script successfully completes and detects 53 total issues (4 high risk, 49 medium risk)
-   - **🚀 Robust**: Comprehensive error handling and cleanup for production-ready Windows deployment
-- **2025-09-18 v2.0.0**: **Major Enhancement Release** - Complete feature parity between Bash and Windows Batch scripts
-   - **Multi-Attack Coverage**: Added 26 packages from Chalk/Debug crypto theft attack (571+ total). Now covers cryptocurrency wallet replacement patterns, XMLHttpRequest hijacking, and malicious function detection
-   - **Enhanced Trufflehog Detection**: Risk level categorization (HIGH/MEDIUM/LOW) with file context analysis
-   - **Git Investigation Tools**: Added commit hashes and investigation commands for suspicious branches/repositories
-   - **File Previews**: Shows content preview for HIGH RISK files (malicious workflows, known hashes)
-   - **Optimized Performance**: Improved package loading with progress indicators and faster pattern matching
-   - **Enhanced Reporting**: Truncated paranoid mode results (max 5 shown), detailed explanatory notes
-   - **Package Integrity**: Timestamp checks for lockfiles modified within 30 days
-   - **Migration Detection**: Detects '-migration' suffix repositories and base64-encoded data.json files
-   - **Cross-Platform Excellence**: Windows Batch script now matches all Bash script capabilities
-   - **Added JFrog and Aikido blog references** as primary sources for enhanced threat intelligence
+- **2025-09-19 v2.2.1**: **Missing Socket.dev Packages Added** - Added 34 additional compromised packages from Socket.dev analysis that were previously missed, including @ctrl packages (9), @nativescript-community packages (8), @rxap packages (2), and 15 standalone packages. Total coverage now includes all known compromised packages from multiple security sources
+- **2025-09-19 v2.2.0**: **Multi-Hash Detection** - Added detection for all 7 Shai-Hulud worm variants (V1-V7) using comprehensive hash analysis from Socket.dev research. Enhanced malicious file detection from single hash to complete worm evolution timeline covering September 14-16, 2025 attack campaign
+- **2025-09-19 v2.1.0**: **Enhanced Error Handling & pnpm Support** - Added robust error handling for grep pipelines to prevent script hangs (PR #13). Added pnpm-lock.yaml support with YAML-to-JSON transformation for full lockfile coverage. Improved reliability across different shell environments
+- **2025-09-18 v2.0.0**: **Multi-Attack Coverage** - Added 26 packages from Chalk/Debug crypto theft attack (571+ total). Now covers cryptocurrency wallet replacement patterns, XMLHttpRequest hijacking, and malicious function detection. Added JFrog and Aikido blog references as primary sources
 - **2025-09-17 v1.3.0**: **Complete JFrog integration** - Added 273 additional packages (540+ total) with comprehensive coverage of the complete JFrog 517-package analysis. Added 6 new namespaces: @yoobic, @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, and @ui-ux-gang
 - **2025-09-17 v1.2.0**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
 - **2025-09-16 v1.1.0**: Externalized compromised package list to `compromised-packages.txt` for easier maintenance and updates
@@ -246,25 +232,13 @@ The repository includes test cases to validate both scripts:
 ./shai-hulud-detector.sh test-cases/common-crypto-libs
 ```
 
-### Batch Testing (Windows)
-```batch
-# Test on clean project (should show no issues)
-shai-hulud-detector.bat test-cases\clean-project
-
-# Test on infected project (should show multiple issues)
-shai-hulud-detector.bat test-cases\infected-project
-
-# Test on mixed project (should show medium risk issues)
-shai-hulud-detector.bat test-cases\mixed-project
-```
-
 ## How it Works
 
 The script performs these comprehensive checks:
 
 1. **Package Database Loading**: Loads the complete list of 571+ compromised packages from `compromised-packages.txt`
 2. **Workflow Detection**: Searches for `shai-hulud-workflow.yml` files in `.github/workflows/`
-3. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against known malicious hashes
+3. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against 7 known malicious bundle.js variants representing the complete evolution of the Shai-Hulud worm (V1-V7)
 4. **Package Analysis**: Parses `package.json` files for specific compromised versions and affected namespaces
 5. **Postinstall Hook Detection**: Identifies suspicious postinstall scripts that could be used for malware propagation
 6. **Content Scanning**: Greps for suspicious URLs, webhook endpoints, and malicious patterns
@@ -276,7 +250,7 @@ The script performs these comprehensive checks:
 
 ## Limitations
 
-- **Hash Detection**: Only detects files with the exact known malicious hash
+- **Hash Detection**: Only detects files with exact matches to the 7 known malicious bundle.js hashes
 - **Package Versions**: Detects specific compromised versions and namespace warnings, but new compromised versions may not be detected
 - **False Positives**: Legitimate use of webhook.site, Trufflehog for security, or postinstall hooks will trigger alerts
 - **Worm Evolution**: The self-replicating nature means new variants may emerge with different signatures
