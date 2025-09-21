@@ -1,5 +1,5 @@
 # Shai-Hulud NPM Supply Chain Attack Detection Script (PowerShell)
-# Version: 1.2.1
+# Version: 1.2.2
 # Detects indicators of compromise from the September 2025 npm attack
 # Usage: .\shai-hulud-detector.ps1 [-Path] <directory_to_scan> [-Paranoid]
 
@@ -1231,6 +1231,14 @@ function Generate-Report {
 }
 
 # Main execution
+$startTime = Get-Date
+Write-Host ""
+Write-ColorOutput "========================================" -Color Cyan
+Write-ColorOutput "Shai-Hulud Detection Script v1.2.2" -Color Cyan
+Write-ColorOutput "Started: $($startTime.ToString('yyyy-MM-dd HH:mm:ss'))" -Color Cyan
+Write-ColorOutput "========================================" -Color Cyan
+Write-Host ""
+
 Write-ColorOutput "Starting Shai-Hulud detection scan..." -Color Green
 if ($Paranoid) {
     Write-ColorOutput "Scanning directory: $ScanPath (with paranoid mode enabled)" -Color Blue
@@ -1265,3 +1273,12 @@ if ($Paranoid) {
 
 # Generate report
 Generate-Report -ParanoidMode $Paranoid
+
+# Calculate and display execution time
+$endTime = Get-Date
+$executionTime = $endTime - $startTime
+Write-Host ""
+Write-ColorOutput "========================================" -Color Cyan
+Write-ColorOutput "Scan completed: $($endTime.ToString('yyyy-MM-dd HH:mm:ss'))" -Color Cyan
+Write-ColorOutput "Total execution time: $($executionTime.ToString('mm\:ss\.fff'))" -Color Cyan
+Write-ColorOutput "========================================" -Color Cyan
