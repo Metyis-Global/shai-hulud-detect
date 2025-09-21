@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cls
 
 :: Shai-Hulud NPM Supply Chain Attack Detection Script
-:: Version: 4.0.1 - Fixed file path handling and syntax errors
+:: Version: 4.2.0 - Fixed package checking function with proper shell script migration
 :: Detects indicators of compromise from the September 2025 npm attack
 :: Usage: shai-hulud-detector.bat [--paranoid] <directory_to_scan>
 
@@ -67,7 +67,7 @@ for %%i in ("!SCAN_DIR!") do set "SCAN_DIR=%%~fi"
 echo.
 call :print_blue "=============================================="
 call :print_blue "    SHAI-HULUD ATTACK DETECTION TOOL"
-call :print_blue "    Version 4.0.1 - Fixed Path Handling"
+call :print_blue "    Version 4.2.0 - Fixed Package Checking"
 call :print_blue "=============================================="
 echo.
 
@@ -200,7 +200,7 @@ set /a temp_count=0
 :: Search for workflow files using dir and findstr to avoid pushd issues
 cd /d "!scan_dir!" 2>nul
 if not errorlevel 1 (
-    set "temp_workflow_file=shai_hulud_workflow.tmp"
+    set "temp_workflow_file=%TEMP%\shai_hulud_workflow_%RANDOM%.tmp"
     dir /s /b shai-hulud-workflow.yml 2>nul > "!temp_workflow_file!"
     
     if exist "!temp_workflow_file!" (
@@ -236,69 +236,114 @@ set /a initial_hash_count=!MALICIOUS_HASHES_COUNT!
 
 :: Count files by extension separately since dir can't handle multiple patterns at once
 set /a total_files=0
+set /a files_scanned=0
 
 :: Count files by extension separately
 cd /d "!scan_dir!" 2>nul
 if not errorlevel 1 (
     :: Use temporary file to capture dir output
-    set "temp_file=shai_hulud_files.tmp"
+    set "temp_file=%TEMP%\shai_hulud_files_%RANDOM%.tmp"
     dir /s /b *.js 2>nul > "!temp_file!"
     
     if exist "!temp_file!" (
         for /f "usebackq delims=" %%f in ("!temp_file!") do (
-            if exist "%%f" set /a total_files+=1
+            if exist "%%f" (
+                echo %%f | findstr /i "\.tmp$" >nul 2>&1
+                if errorlevel 1 (
+                    echo %%f | findstr /i "%~dp0" >nul 2>&1
+                    if errorlevel 1 set /a total_files+=1
+                )
+            )
         )
         del "!temp_file!" 2>nul
     )
     :: Check TS files
-    set "temp_file_ts=shai_hulud_ts.tmp"
+    set "temp_file_ts=%TEMP%\shai_hulud_ts_%RANDOM%.tmp"
     dir /s /b *.ts 2>nul > "!temp_file_ts!"
     if exist "!temp_file_ts!" (
         for /f "usebackq delims=" %%f in ("!temp_file_ts!") do (
-            if exist "%%f" set /a total_files+=1
+            if exist "%%f" (
+                echo %%f | findstr /i "\.tmp$" >nul 2>&1
+                if errorlevel 1 (
+                    echo %%f | findstr /i "%~dp0" >nul 2>&1
+                    if errorlevel 1 set /a total_files+=1
+                )
+            )
         )
         del "!temp_file_ts!" 2>nul
     )
     
     :: Check JSON files
-    set "temp_file_json=shai_hulud_json.tmp"
+    set "temp_file_json=%TEMP%\shai_hulud_json_%RANDOM%.tmp"
     dir /s /b *.json 2>nul > "!temp_file_json!"
     if exist "!temp_file_json!" (
         for /f "usebackq delims=" %%f in ("!temp_file_json!") do (
-            if exist "%%f" set /a total_files+=1
+            if exist "%%f" (
+                echo %%f | findstr /i "\.tmp$" >nul 2>&1
+                if errorlevel 1 (
+                    echo %%f | findstr /i "%~dp0" >nul 2>&1
+                    if errorlevel 1 set /a total_files+=1
+                )
+            )
         )
         del "!temp_file_json!" 2>nul
     )
-)
 
-if !total_files! gtr 0 (
-    echo    Found !total_files! files to scan...
-    :: Process JS files
-    if exist "shai_hulud_files.tmp" (
-        for /f "usebackq delims=" %%f in ("shai_hulud_files.tmp") do (
-            if exist "%%f" call :process_hash_file "%%f"
+    if !total_files! gtr 0 (
+        echo    Found !total_files! files to scan...
+        :: Recreate file lists for processing
+        dir /s /b *.js 2>nul > "%TEMP%\shai_hulud_files_%RANDOM%.tmp"
+        dir /s /b *.ts 2>nul > "%TEMP%\shai_hulud_ts_%RANDOM%.tmp"
+        dir /s /b *.json 2>nul > "%TEMP%\shai_hulud_json_%RANDOM%.tmp"
+        
+        :: Process JS files
+        set "temp_file=%TEMP%\shai_hulud_files_%RANDOM%.tmp"
+        if exist "!temp_file!" (
+            for /f "usebackq delims=" %%f in ("!temp_file!") do (
+                if exist "%%f" (
+                    echo %%f | findstr /i "\.tmp$" >nul 2>&1
+                    if errorlevel 1 (
+                        echo %%f | findstr /i "%~dp0" >nul 2>&1
+                        if errorlevel 1 call :process_hash_file "%%f"
+                    )
+                )
+            )
         )
-    )
-    :: Process TS files  
-    if exist "shai_hulud_ts.tmp" (
-        for /f "usebackq delims=" %%f in ("shai_hulud_ts.tmp") do (
-            if exist "%%f" call :process_hash_file "%%f"
+        :: Process TS files  
+        set "temp_file_ts=%TEMP%\shai_hulud_ts_%RANDOM%.tmp"
+        if exist "!temp_file_ts!" (
+            for /f "usebackq delims=" %%f in ("!temp_file_ts!") do (
+                if exist "%%f" (
+                    echo %%f | findstr /i "\.tmp$" >nul 2>&1
+                    if errorlevel 1 (
+                        echo %%f | findstr /i "%~dp0" >nul 2>&1
+                        if errorlevel 1 call :process_hash_file "%%f"
+                    )
+                )
+            )
         )
-    )
-    :: Process JSON files
-    if exist "shai_hulud_json.tmp" (
-        for /f "usebackq delims=" %%f in ("shai_hulud_json.tmp") do (
-            if exist "%%f" call :process_hash_file "%%f"
+        :: Process JSON files
+        set "temp_file_json=%TEMP%\shai_hulud_json_%RANDOM%.tmp"
+        if exist "!temp_file_json!" (
+            for /f "usebackq delims=" %%f in ("!temp_file_json!") do (
+                if exist "%%f" (
+                    echo %%f | findstr /i "\.tmp$" >nul 2>&1
+                    if errorlevel 1 (
+                        echo %%f | findstr /i "%~dp0" >nul 2>&1
+                        if errorlevel 1 call :process_hash_file "%%f"
+                    )
+                )
+            )
         )
+    ) else (
+        echo    No JavaScript, TypeScript, or JSON files found in directory
     )
-) else (
-    echo    No JavaScript, TypeScript, or JSON files found in directory
 )
 
 :: Clean up temporary files
-del "shai_hulud_files.tmp" 2>nul
-del "shai_hulud_ts.tmp" 2>nul
-del "shai_hulud_json.tmp" 2>nul
+del "!temp_file!" 2>nul
+del "!temp_file_ts!" 2>nul
+del "!temp_file_json!" 2>nul
 
 :: Change back to script directory
 cd /d "%~dp0"
@@ -321,7 +366,7 @@ set /a files_scanned+=1
 if !total_files! gtr 20 (
     set /a progress=!files_scanned!*100/!total_files!
     set /a mod=!files_scanned!%%10
-    if !mod! equ 0 echo    Progress: !progress!%%%% (!files_scanned!/!total_files! files)
+    if !mod! equ 0 echo    Progress: !progress!%% (!files_scanned!/!total_files! files)
 )
 
 :: Get hash using certutil - escape the filename properly
@@ -329,7 +374,7 @@ set "file_hash="
 set "hash_line_count=0"
 certutil -hashfile "!file_path!" SHA256 >nul 2>&1
 if not errorlevel 1 (
-    for /f "tokens=*" %%h in ('certutil -hashfile "!file_path!" SHA256 2^>nul') do (
+    for /f "tokens=*" %%h in ('certutil -hashfile "!file_path!" SHA256 2^^^>nul') do (
         set /a hash_line_count+=1
         :: The hash is on line 2
         if !hash_line_count! equ 2 (
@@ -352,101 +397,57 @@ goto :eof
 :check_packages
 set "scan_dir=%~1"
 call :print_blue "[-] Checking package.json files for compromised packages..."
-echo    Searching for package.json files and analyzing dependencies...
-echo    Checking against !COMPROMISED_PACKAGES_COUNT! known malicious package versions
-set /a package_files_found=0
-:: Change to scan directory to find package.json files
+echo    Analyzing !COMPROMISED_PACKAGES_COUNT! known compromised packages...
+
+set /a packages_scanned=0
+if not defined COMPROMISED_FOUND_COUNT set COMPROMISED_FOUND_COUNT=0
+set /a initial_compromised_count=!COMPROMISED_FOUND_COUNT!
+
+:: Change to scan directory to use dir command
 cd /d "!scan_dir!" 2>nul
-if errorlevel 1 goto :skip_package_scan
-
-:: Use temp file approach for finding package.json files
-set "temp_package_file=shai_hulud_packages.tmp"
-dir /s /b package.json 2>nul > "!temp_package_file!"
-
-if exist "!temp_package_file!" (
-    for /f "usebackq delims=" %%f in ("!temp_package_file!") do (
-    if exist "%%f" (
-        set /a package_files_found+=1
-        echo    Checking: %%f
-        
-        :: Read package.json content and check for compromised packages
-        set "current_file=%%f"
-        
-        :: Ensure we have the full path
-        for %%i in ("%%f") do set "current_file=%%~fi"
-        
-        :: Enhanced approach - check against full compromised package database
-        :: Process all loaded compromised packages
-        for /l %%p in (1,1,!COMPROMISED_PACKAGES_COUNT!) do (
-            set "package_entry=!COMPROMISED_PACKAGES[%%p]!"
-            
-            :: Split package entry into name and version
-            for /f "tokens=1,2 delims=:" %%x in ("!package_entry!") do (
-                set "package_name=%%x"
-                set "malicious_version=%%y"
-                
-                :: Check if package.json contains this package name
-                type "!current_file!" 2>nul | findstr /c:"\"!package_name!\"" >nul 2>&1
-                if not errorlevel 1 (
-                    :: Check for exact version match
-                    type "!current_file!" 2>nul | findstr /c:"\"!package_name!\": \"!malicious_version!\"" >nul 2>&1
-                    if not errorlevel 1 (
-                        set /a COMPROMISED_FOUND_COUNT+=1
-                        set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@!malicious_version!"
-                        echo       [!] FOUND compromised package: !package_name!@!malicious_version!
-                    ) else (
-                        :: Check for range patterns like "^4.1.0" or "~4.1.0"
-                        type "!current_file!" 2>nul | findstr /c:"\"!package_name!\": \"^!malicious_version!\"" >nul 2>&1
-                        if not errorlevel 1 (
-                            set /a COMPROMISED_FOUND_COUNT+=1
-                            set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@^!malicious_version!"
-                            echo       [!] FOUND compromised package range: !package_name!@^!malicious_version!
-                        ) else (
-                            type "!current_file!" 2>nul | findstr /c:"\"!package_name!\": \"~!malicious_version!\"" >nul 2>&1
-                            if not errorlevel 1 (
-                                set /a COMPROMISED_FOUND_COUNT+=1
-                                set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=!current_file!:!package_name!@~!malicious_version!"
-                                echo       [!] FOUND compromised package range: !package_name!@~!malicious_version!
-                            )
-                        )
-                    )
-                )
-            )
-        )
-        
-        :: Check for suspicious namespaces (simplified) - avoid the drive specification error
-        set "check_file=!current_file!"
-        type "!check_file!" 2>nul | findstr /c:"@ctrl/" >nul 2>&1
-        if not errorlevel 1 (
-            set /a NAMESPACE_WARNINGS_COUNT+=1
-            set "NAMESPACE_WARNINGS[!NAMESPACE_WARNINGS_COUNT!]=!check_file!:Contains packages from compromised namespace: @ctrl"
-        )
-        
-        type "!check_file!" 2>nul | findstr /c:"@crowdstrike/" >nul 2>&1
-        if not errorlevel 1 (
-            set /a NAMESPACE_WARNINGS_COUNT+=1
-            set "NAMESPACE_WARNINGS[!NAMESPACE_WARNINGS_COUNT!]=!check_file!:Contains packages from compromised namespace: @crowdstrike"
-        )
-    )
-    )
-    del "!temp_package_file!" 2>nul
-) else (
-    echo    No package.json files found in directory
+if errorlevel 1 (
+    echo    Error: Could not access directory !scan_dir!
+    goto :eof
 )
 
-set /a total_package_issues=!COMPROMISED_FOUND_COUNT!+!NAMESPACE_WARNINGS_COUNT!
-if !total_package_issues! gtr 0 (
-    call :print_yellow "   [FOUND] !total_package_issues! package-related issue(s) detected!"
-    if !COMPROMISED_FOUND_COUNT! gtr 0 echo    - !COMPROMISED_FOUND_COUNT! exact compromised package version(s^) found
-    if !NAMESPACE_WARNINGS_COUNT! gtr 0 echo    - !NAMESPACE_WARNINGS_COUNT! package(s^) from compromised namespaces
-) else (
-    call :print_green "   [OK] No compromised packages detected"
-    echo    All package dependencies appear clean
+:: Use temp file to find package.json files
+set "temp_packages=%TEMP%\shai_pkg_%RANDOM%.tmp"
+dir /s /b package.json 2>nul > "!temp_packages!"
+
+set /a packages_found=0
+if exist "!temp_packages!" (
+    for /f "usebackq delims=" %%f in ("!temp_packages!") do (
+        if exist "%%f" (
+            set /a packages_scanned+=1
+            set /a packages_found+=1
+            echo    Checking: %%f
+            call :check_single_package_file "%%f"
+        )
+    )
+    del "!temp_packages!" 2>nul
+)
+
+if !packages_found! equ 0 (
+    echo    No package.json files found in directory tree
 )
 
 :: Change back to script directory
 cd /d "%~dp0"
-:skip_package_scan
+
+if not defined COMPROMISED_FOUND_COUNT set COMPROMISED_FOUND_COUNT=0
+if not defined initial_compromised_count set initial_compromised_count=0
+set /a package_matches=!COMPROMISED_FOUND_COUNT!-!initial_compromised_count!
+if !package_matches! gtr 0 (
+    call :print_red "   [!] Found !package_matches! compromised package(s) in !packages_scanned! package.json file(s)"
+    echo    These packages are known to be malicious and should be removed immediately
+) else (
+    call :print_green "   [OK] No compromised packages detected"
+    if defined packages_scanned (
+        echo    Scanned !packages_scanned! package.json file(s^) - all clean
+    ) else (
+        echo    Scanned 0 package.json file(s^) - all clean
+    )
+)
 goto :eof
 
 :check_postinstall_hooks
@@ -457,7 +458,7 @@ echo    Analyzing package.json files for dangerous install scripts...
 cd /d "!scan_dir!" 2>nul
 if not errorlevel 1 (
     :: Use temp file to get package.json files  
-    set "temp_postinstall_file=shai_hulud_postinstall.tmp"
+    set "temp_postinstall_file=%TEMP%\shai_hulud_postinstall_%RANDOM%.tmp"
     dir /s /b package.json 2>nul > "!temp_postinstall_file!"
     
     if exist "!temp_postinstall_file!" (
@@ -466,13 +467,13 @@ if not errorlevel 1 (
                 findstr /c:"\"postinstall\"" "%%f" >nul 2>&1
                 if not errorlevel 1 (
                     :: Use temp file to capture findstr output
-                    set "temp_line_file=shai_hulud_lines.tmp"
+                    set "temp_line_file=%TEMP%\shai_hulud_lines_%RANDOM%.tmp"
                     findstr /c:"\"postinstall\"" "%%f" > "!temp_line_file!" 2>nul
                     
                     if exist "!temp_line_file!" (
                         for /f "usebackq delims=" %%l in ("!temp_line_file!") do (
                             set "line=%%l"
-                            echo !line! | findstr /i "curl wget \"node -e\" eval" >nul 2>&1
+                            echo !line! | findstr /i "curl wget node eval" >nul 2>&1
                             if not errorlevel 1 (
                                 set /a POSTINSTALL_HOOKS_COUNT+=1
                                 set "POSTINSTALL_HOOKS[!POSTINSTALL_HOOKS_COUNT!]=%%f:Suspicious postinstall found"
@@ -546,7 +547,7 @@ set /a initial_crypto_count=!CRYPTO_PATTERNS_COUNT!
 cd /d "!scan_dir!" 2>nul
 if not errorlevel 1 (
     :: Use temp file to find JS/TS/JSON files for crypto pattern scanning
-    set "temp_crypto_file=shai_hulud_crypto.tmp"
+    set "temp_crypto_file=%TEMP%\shai_hulud_crypto_%RANDOM%.tmp"
     dir /s /b *.js *.ts *.json 2>nul > "!temp_crypto_file!"
     
     if exist "!temp_crypto_file!" (
@@ -814,6 +815,7 @@ goto :eof
 set "scan_dir=%~1"
 call :print_blue "[-] Checking for Trufflehog activity and secret scanning..."
 echo    Searching for credential harvesting patterns...
+set /a trufflehog_files_scanned=0
 
 :: Look for trufflehog binary files
 for /r "!scan_dir!" %%f in (*trufflehog*) do (
@@ -837,12 +839,14 @@ for /r "!scan_dir!" %%f in (*.js *.py *.sh *.json) do (
             
             :: Get content sample for pattern analysis
             set "content_sample="
+            set "got_sample=0"
             if exist "%%f" (
-                for /f "usebackq delims=" %%l in ('"%%f"') do (
-                    set "content_sample=!content_sample! %%l"
-                    goto :break_content_loop
+                for /f "usebackq delims=" %%l in ("%%f") do (
+                    if "!got_sample!"=="0" (
+                        set "content_sample=%%l"
+                        set "got_sample=1"
+                    )
                 )
-                :break_content_loop
             )
             
             if "!file_context!"=="documentation" (
@@ -904,21 +908,20 @@ for /r "!scan_dir!" %%f in (*.js *.py *.sh *.json) do (
                         set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
                         set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:LOW:Credential patterns in dependencies"
                     ) else (
-                :: Check if combined with exfiltration patterns
-                findstr /i "webhook.site curl https.request" "%%f" >nul 2>&1
-                if not errorlevel 1 (
-                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Credential patterns with exfiltration"
-                    echo       [!] CRITICAL: Credential harvesting with exfiltration in: %%f
-                ) else (
-                    set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
-                    set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Credential scanning patterns"
-                    echo       [!] WARNING: Credential scanning patterns in: %%f
-                )
+                        :: Check if combined with exfiltration patterns
+                        findstr /i "webhook.site curl https.request" "%%f" >nul 2>&1
+                        if not errorlevel 1 (
+                            set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                            set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:HIGH:Credential patterns with exfiltration"
+                            echo       [!] CRITICAL: Credential harvesting with exfiltration in: %%f
+                        ) else (
+                            set /a TRUFFLEHOG_ACTIVITY_COUNT+=1
+                            set "TRUFFLEHOG_ACTIVITY[!TRUFFLEHOG_ACTIVITY_COUNT!]=%%f:MEDIUM:Credential scanning patterns"
+                            echo       [!] WARNING: Credential scanning patterns in: %%f
+                        )
                     )
                 )
             )
-        )
         )
     )
 )
@@ -1080,7 +1083,7 @@ cd /d "!scan_dir!" 2>nul
 if errorlevel 1 goto :skip_typosquatting
 
 :: Use temp file to find package.json files
-set "temp_typo_file=shai_hulud_typo.tmp"
+set "temp_typo_file=%TEMP%\shai_hulud_typo_%RANDOM%.tmp"
 dir /s /b package.json 2>nul > "!temp_typo_file!"
 
 if exist "!temp_typo_file!" (
@@ -1116,7 +1119,7 @@ goto :eof
 set "package_file=%~1"
 
 :: Use temp file to extract just the package names
-set "temp_pkg_names=shai_hulud_pkg_names.tmp"
+set "temp_pkg_names=%TEMP%\shai_hulud_pkg_names_%RANDOM%.tmp"
 findstr /r "^[[:space:]]*\"[^\"]*\"[[:space:]]*:" "!package_file!" > "!temp_pkg_names!" 2>nul
 
 if exist "!temp_pkg_names!" (
@@ -1369,7 +1372,7 @@ cd /d "!scan_dir!" 2>nul
 if errorlevel 1 goto :skip_network_exfiltration
 
 :: Use temp file to find JS/TS/JSON files
-set "temp_network_file=shai_hulud_network.tmp"
+set "temp_network_file=%TEMP%\shai_hulud_network_%RANDOM%.tmp"
 dir /s /b *.js *.ts *.json *.mjs 2>nul > "!temp_network_file!"
 
 if exist "!temp_network_file!" (
@@ -1864,7 +1867,7 @@ set /a initial_repos_count=!SHAI_HULUD_REPOS_COUNT!
 :: Look for .git directories using temp file approach
 cd /d "!scan_dir!" 2>nul
 if not errorlevel 1 (
-    set "temp_git_file=shai_hulud_git.tmp"
+    set "temp_git_file=%TEMP%\shai_hulud_git_%RANDOM%.tmp"
     dir /s /b /a:d .git 2>nul > "!temp_git_file!"
     
     if exist "!temp_git_file!" (
@@ -1924,5 +1927,57 @@ if !repo_matches! gtr 0 (
     call :print_yellow "   [FOUND] !repo_matches! suspicious repository pattern(s) detected!"
 ) else (
     call :print_green "   [OK] No suspicious repository patterns detected"
+)
+goto :eof
+
+:check_single_package_file
+set "package_file=%~1"
+:: Process all loaded compromised packages for this file
+for /l %%p in (1,1,!COMPROMISED_PACKAGES_COUNT!) do (
+    set "package_entry=!COMPROMISED_PACKAGES[%%p]!"
+    call :check_package_entry "!package_file!" "!package_entry!"
+)
+goto :eof
+
+:check_package_entry
+set "check_file=%~1"
+set "entry=%~2"
+:: Split package entry into name and version
+for /f "tokens=1,2 delims=:" %%x in ("%entry%") do (
+    set "package_name=%%x"
+    set "malicious_version=%%y"
+    call :check_package_version "!check_file!" "!package_name!" "!malicious_version!"
+)
+goto :eof
+
+:check_package_version
+set "file_to_check=%~1"
+set "pkg_name=%~2" 
+set "pkg_version=%~3"
+:: Check if package.json contains this package name
+findstr /c:"%pkg_name%" "%file_to_check%" >nul 2>&1
+if not errorlevel 1 (
+    :: Use simpler approach without temp files
+    type "%file_to_check%" | findstr /c:"%pkg_name%": | findstr /c:"%pkg_version%" >nul 2>&1
+    if not errorlevel 1 (
+        set /a COMPROMISED_FOUND_COUNT+=1
+        set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=%file_to_check%:%pkg_name%@%pkg_version%"
+        echo       [!] FOUND compromised package: %pkg_name%@%pkg_version%
+    ) else (
+        :: Check for range patterns like "^4.1.0" or "~4.1.0"
+        type "%file_to_check%" | findstr /c:"%pkg_name%": | findstr /c:"^%pkg_version%" >nul 2>&1
+        if not errorlevel 1 (
+            set /a COMPROMISED_FOUND_COUNT+=1
+            set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=%file_to_check%:%pkg_name%@^%pkg_version%"
+            echo       [!] FOUND compromised package range: %pkg_name%@^%pkg_version%
+        ) else (
+            type "%file_to_check%" | findstr /c:"%pkg_name%": | findstr /c:"~%pkg_version%" >nul 2>&1
+            if not errorlevel 1 (
+                set /a COMPROMISED_FOUND_COUNT+=1
+                set "COMPROMISED_FOUND[!COMPROMISED_FOUND_COUNT!]=%file_to_check%:%pkg_name%@~%pkg_version%"
+                echo       [!] FOUND compromised package range: %pkg_name%@~%pkg_version%
+            )
+        )
+    )
 )
 goto :eof
