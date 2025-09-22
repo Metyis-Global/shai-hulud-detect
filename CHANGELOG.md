@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2025-09-21
+
+### Added
+- **Progress Display**: Merged PR #19 for real-time file scanning progress with percentage completion and file counts
+- **Multi-Hash Detection Testing**: Merged PR #26 adding comprehensive test cases for all 7 Shai-Hulud worm variant hash detection
+- **Enhanced Error Handling**: Merged PR #13 for robust error handling in grep pipelines to prevent script hangs
+- **pnpm Lockfile Support**: Added comprehensive pnpm-lock.yaml support with YAML-to-JSON transformation capability
+- **Cross-platform Compatibility**: Merged PR #25 for improved file age detection using portable `date -r` command instead of BSD-specific `stat -f`
+
+### Changed
+- Improved user experience with real-time progress feedback during file scanning operations
+- Enhanced test coverage for malicious hash detection across all worm variants
+- Improved script reliability across different shell configurations and package manager environments
+- Enhanced lockfile detection to support npm (package-lock.json), yarn (yarn.lock), and pnpm (pnpm-lock.yaml) formats
+- Better error handling prevents silent failures that could cause script hangs
+- Minor UI cleanup and formatting improvements
+
+### Fixed
+- Progress display issues with line clearing and whitespace handling in file counts
+- Script hanging issues when grep commands fail in strict shell environments with `set -eo pipefail`
+- Silent pipeline failures that could prevent complete package detection
+- File age detection compatibility between macOS (BSD) and Linux (GNU) systems
+
+### Technical Details
+- Added progress tracking with ANSI escape sequences for clean display updates
+- Implemented arithmetic context wrapping for `wc -l` output to eliminate whitespace issues
+- Added comprehensive test cases covering all 7 SHA-256 hash variants from Socket.dev analysis
+- Added `transform_pnpm_yaml()` function to convert YAML lockfiles to pseudo-JSON for unified processing
+- Implemented temporary file management for pnpm lockfile transformation
+- Enhanced find command to detect all three major lockfile formats simultaneously
+- Replaced BSD-specific `stat -f "%m"` with portable `date -r FILE +%s` for cross-platform compatibility
+
 ## [2.2.1] - 2025-09-19
 
 ### Added
