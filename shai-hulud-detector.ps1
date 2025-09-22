@@ -1,5 +1,5 @@
 # Shai-Hulud NPM Supply Chain Attack Detection Script (PowerShell)
-# Version: 1.3.1
+# Version: 1.3.2
 # Detects indicators of compromise from the September 2025 npm attack
 # Usage: .\shai-hulud-detector.ps1 [-Path] <directory_to_scan> [-Paranoid]
 
@@ -1260,7 +1260,7 @@ function Generate-Report {
 $startTime = Get-Date
 Write-Host ""
 Write-ColorOutput "========================================" -Color Cyan
-Write-ColorOutput "Shai-Hulud Detection Script v1.3.1" -Color Cyan
+Write-ColorOutput "Shai-Hulud Detection Script v1.3.2" -Color Cyan
 Write-ColorOutput "Started: $($startTime.ToString('yyyy-MM-dd HH:mm:ss'))" -Color Cyan
 Write-ColorOutput "========================================" -Color Cyan
 Write-Host ""
