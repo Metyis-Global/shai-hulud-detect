@@ -1,5 +1,5 @@
 # Shai-Hulud NPM Supply Chain Attack Detection Script (PowerShell)
-# Version: 1.3.0
+# Version: 1.3.1
 # Detects indicators of compromise from the September 2025 npm attack
 # Usage: .\shai-hulud-detector.ps1 [-Path] <directory_to_scan> [-Paranoid]
 
@@ -482,7 +482,7 @@ function Check-TrufflehogActivity {
     # Look for trufflehog binary files
     $binaryFiles = Get-ChildItem -Path $ScanDir -Filter "*trufflehog*" -Recurse -File -ErrorAction SilentlyContinue
     foreach ($binaryFile in $binaryFiles) {
-        $global:TRUFFLEHOG_ACTIVITY += "$($binaryFile.FullName):HIGH:Trufflehog binary found"
+        $global:TRUFFLEHOG_ACTIVITY += "$($binaryFile.FullName)|HIGH|Trufflehog binary found"
     }
     
     # Check for trufflehog activity in files
@@ -498,14 +498,14 @@ function Check-TrufflehogActivity {
                 switch ($context) {
                     "documentation" { continue }
                     { $_ -in "node_modules", "type_definitions", "build_output" } {
-                        $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName):MEDIUM:Contains trufflehog references in $context"
+                        $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName)|MEDIUM|Contains trufflehog references in $context"
                     }
                     default {
                         if ($content -match 'subprocess' -and $content -match 'curl') {
-                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName):HIGH:Suspicious trufflehog execution pattern"
+                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName)|HIGH|Suspicious trufflehog execution pattern"
                         }
                         else {
-                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName):MEDIUM:Contains trufflehog references in source code"
+                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName)|MEDIUM|Contains trufflehog references in source code"
                         }
                     }
                 }
@@ -517,20 +517,20 @@ function Check-TrufflehogActivity {
                     { $_ -in "type_definitions", "documentation" } { continue }
                     "node_modules" {
                         if (-not (Test-LegitimatePattern -FilePath $file.FullName -ContentSample $content)) {
-                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName):LOW:Credential patterns in node_modules"
+                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName)|LOW|Credential patterns in node_modules"
                         }
                     }
                     "configuration" {
                         if ($content -notmatch 'DefinePlugin|webpack') {
-                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName):MEDIUM:Credential patterns in configuration"
+                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName)|MEDIUM|Credential patterns in configuration"
                         }
                     }
                     default {
                         if ($content -match 'webhook\.site|curl|https\.request') {
-                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName):HIGH:Credential patterns with potential exfiltration"
+                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName)|HIGH|Credential patterns with potential exfiltration"
                         }
                         elseif (-not (Test-LegitimatePattern -FilePath $file.FullName -ContentSample $content)) {
-                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName):MEDIUM:Contains credential scanning patterns"
+                            $global:TRUFFLEHOG_ACTIVITY += "$($file.FullName)|MEDIUM|Contains credential scanning patterns"
                         }
                     }
                 }
@@ -1101,14 +1101,20 @@ function Generate-Report {
     $trufflehogLow = @()
     
     foreach ($entry in $global:TRUFFLEHOG_ACTIVITY) {
-        $parts = $entry -split ':', 3
+        $parts = $entry -split '\|', 3
         if ($parts.Count -ge 3) {
             $riskLevel = $parts[1]
             
             switch ($riskLevel) {
-                "HIGH" { $trufflehogHigh += "$($parts[0]):$($parts[2])" }
-                "MEDIUM" { $trufflehogMedium += "$($parts[0]):$($parts[2])" }
-                "LOW" { $trufflehogLow += "$($parts[0]):$($parts[2])" }
+                "HIGH" { 
+                    $trufflehogHigh += "$($parts[0]):$($parts[2])"
+                }
+                "MEDIUM" { 
+                    $trufflehogMedium += "$($parts[0]):$($parts[2])"
+                }
+                "LOW" { 
+                    $trufflehogLow += "$($parts[0]):$($parts[2])"
+                }
             }
         }
     }
@@ -1254,7 +1260,7 @@ function Generate-Report {
 $startTime = Get-Date
 Write-Host ""
 Write-ColorOutput "========================================" -Color Cyan
-Write-ColorOutput "Shai-Hulud Detection Script v1.3.0" -Color Cyan
+Write-ColorOutput "Shai-Hulud Detection Script v1.3.1" -Color Cyan
 Write-ColorOutput "Started: $($startTime.ToString('yyyy-MM-dd HH:mm:ss'))" -Color Cyan
 Write-ColorOutput "========================================" -Color Cyan
 Write-Host ""
