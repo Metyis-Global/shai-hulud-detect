@@ -690,6 +690,6 @@ react-jsonschema-form-extras:1.0.4
 rxnt-authentication:0.0.6
 rxnt-healthchecks-nestjs:1.0.5
 rxnt-kue:1.0.7
-slint-config-teselagen:6.1.7
+eslint-config-teselagen:6.1.7
 swc-plugin-component-annotate:1.9.2
 ts-gaussian:3.0.6
