@@ -1306,5 +1306,5 @@ $executionTime = $endTime - $startTime
 Write-Host ""
 Write-ColorOutput "========================================" -Color Cyan
 Write-ColorOutput "Scan completed: $($endTime.ToString('yyyy-MM-dd HH:mm:ss'))" -Color Cyan
-Write-ColorOutput "Total execution time: $($executionTime.ToString('mm\:ss\.fff'))" -Color Cyan
+Write-ColorOutput "Total execution time: $($executionTime.ToString('hh\:mm\:ss\.fff'))" -Color Cyan
 Write-ColorOutput "========================================" -Color Cyan
