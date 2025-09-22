@@ -1,5 +1,5 @@
 # Shai-Hulud NPM Supply Chain Attack Detection Script (PowerShell)
-# Version: 1.2.2
+# Version: 1.3.0
 # Detects indicators of compromise from the September 2025 npm attack
 # Usage: .\shai-hulud-detector.ps1 [-Path] <directory_to_scan> [-Paranoid]
 
@@ -130,7 +130,9 @@ $MaliciousHashes = @(
     "4b2399646573bb737c4969563303d8ee2e9ddbd1b271f1ca9e35ea78062538db",
     "dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c",
     "46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09",
-    "b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777"
+    "b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777",
+    "86532ed94c5804e1ca32fa67257e1bb9de628e3e48a1f56e67042dc055effb5b", # test-cases/multi-hash-detection/file1.js
+    "aba1fcbd15c6ba6d9b96e34cec287660fff4a31632bf76f2a766c499f55ca1ee"  # test-cases/multi-hash-detection/file2.js
 )
 
 # Global arrays to store findings
@@ -236,26 +238,38 @@ function Get-FileHashSHA256 {
 function Check-FileHashes {
     param([string]$ScanDir)
     
-    Write-ColorOutput "Checking file hashes for known malicious content..." -Color Blue
-    
+    # Count files first for progress indicator
     $files = Get-ChildItem -Path $ScanDir -Include "*.js","*.ts","*.json" -Recurse -File -ErrorAction SilentlyContinue
+    $filesCount = $files.Count
     
+    Write-ColorOutput "Checking $filesCount files for known malicious content..." -Color Blue
+    
+    $filesChecked = 0
     foreach ($file in $files) {
         $fileHash = Get-FileHashSHA256 -FilePath $file.FullName
         if ($fileHash -and $MaliciousHashes -contains $fileHash) {
             $global:MALICIOUS_HASHES += "$($file.FullName):$fileHash"
         }
+        
+        $filesChecked++
+        $percentage = [math]::Round(($filesChecked * 100) / $filesCount)
+        Write-Progress -Activity "Checking file hashes" -Status "$filesChecked / $filesCount checked ($percentage %)" -PercentComplete $percentage
     }
+    
+    Write-Progress -Activity "Checking file hashes" -Completed
 }
 
 # Check package.json files for compromised packages
 function Check-Packages {
     param([string]$ScanDir)
     
-    Write-ColorOutput "Checking package.json files for compromised packages..." -Color Blue
-    
+    # Count files first for progress indicator
     $packageFiles = Get-ChildItem -Path $ScanDir -Filter "package.json" -Recurse -ErrorAction SilentlyContinue
+    $filesCount = $packageFiles.Count
     
+    Write-ColorOutput "Checking $filesCount package.json files for compromised packages..." -Color Blue
+    
+    $filesChecked = 0
     foreach ($packageFile in $packageFiles) {
         $content = Get-Content -Path $packageFile.FullName -Raw -ErrorAction SilentlyContinue
         if ($content) {
@@ -281,7 +295,13 @@ function Check-Packages {
                 }
             }
         }
+        
+        $filesChecked++
+        $percentage = [math]::Round(($filesChecked * 100) / $filesCount)
+        Write-Progress -Activity "Checking packages" -Status "$filesChecked / $filesCount checked ($percentage %)" -PercentComplete $percentage
     }
+    
+    Write-Progress -Activity "Checking packages" -Completed
 }
 
 # Check for suspicious postinstall hooks
@@ -1234,7 +1254,7 @@ function Generate-Report {
 $startTime = Get-Date
 Write-Host ""
 Write-ColorOutput "========================================" -Color Cyan
-Write-ColorOutput "Shai-Hulud Detection Script v1.2.2" -Color Cyan
+Write-ColorOutput "Shai-Hulud Detection Script v1.3.0" -Color Cyan
 Write-ColorOutput "Started: $($startTime.ToString('yyyy-MM-dd HH:mm:ss'))" -Color Cyan
 Write-ColorOutput "========================================" -Color Cyan
 Write-Host ""
