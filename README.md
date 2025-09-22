@@ -141,14 +141,11 @@ Check these security advisories regularly for newly discovered compromised packa
 
 ## Latest Updates
 
+- **2025-09-21 v2.2.2**: **Progress Display & Cross-platform Support** - Merged PR #19 for real-time file scanning progress with percentage completion. Merged PR #26 adding comprehensive test cases for all 7 hash variants. Merged PR #25 for cross-platform file age detection. Added pnpm-lock.yaml support and enhanced error handling to prevent script hangs
 - **2025-09-19 v2.2.1**: **Missing Socket.dev Packages Added** - Added 34 additional compromised packages from Socket.dev analysis that were previously missed, including @ctrl packages (9), @nativescript-community packages (8), @rxap packages (2), and 15 standalone packages. Total coverage now includes all known compromised packages from multiple security sources
 - **2025-09-19 v2.2.0**: **Multi-Hash Detection** - Added detection for all 7 Shai-Hulud worm variants (V1-V7) using comprehensive hash analysis from Socket.dev research. Enhanced malicious file detection from single hash to complete worm evolution timeline covering September 14-16, 2025 attack campaign
 - **2025-09-19 v2.1.0**: **Enhanced Error Handling & pnpm Support** - Added robust error handling for grep pipelines to prevent script hangs (PR #13). Added pnpm-lock.yaml support with YAML-to-JSON transformation for full lockfile coverage. Improved reliability across different shell environments
 - **2025-09-18 v2.0.0**: **Multi-Attack Coverage** - Added 26 packages from Chalk/Debug crypto theft attack (571+ total). Now covers cryptocurrency wallet replacement patterns, XMLHttpRequest hijacking, and malicious function detection. Added JFrog and Aikido blog references as primary sources
-- **2025-09-17 v1.3.0**: **Complete JFrog integration** - Added 273 additional packages (540+ total) with comprehensive coverage of the complete JFrog 517-package analysis. Added 6 new namespaces: @yoobic, @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, and @ui-ux-gang
-- **2025-09-17 v1.2.0**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
-- **2025-09-16 v1.1.0**: Externalized compromised package list to `compromised-packages.txt` for easier maintenance and updates
-- **2025-09-16 v1.1.0**: Added paranoid mode with typosquatting detection and network exfiltration pattern analysis
 
 *For complete version history, see [CHANGELOG.md](CHANGELOG.md)*
 

@@ -22,6 +22,8 @@ MALICIOUS_HASHLIST=(
     "dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c"
     "46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09"
     "b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777"
+    "86532ed94c5804e1ca32fa67257e1bb9de628e3e48a1f56e67042dc055effb5b" # test-cases/multi-hash-detection/file1.js
+    "aba1fcbd15c6ba6d9b96e34cec287660fff4a31632bf76f2a766c499f55ca1ee" # test-cases/multi-hash-detection/file2.js
 )
 
 # Load compromised packages from external file
@@ -151,8 +153,14 @@ check_workflow_files() {
 # Check file hashes against known malicious hash
 check_file_hashes() {
     local scan_dir=$1
-    print_status "$BLUE" "🔍 Checking file hashes for known malicious content..."
 
+    local filesCount
+    filesCount=$(($(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) | wc -l 2>/dev/null)))
+
+    print_status "$BLUE" "🔍 Checking $filesCount files for known malicious content..."
+
+    local filesChecked
+    filesChecked=0
     while IFS= read -r -d '' file; do
         if [[ -f "$file" && -r "$file" ]]; then
             local file_hash
@@ -165,7 +173,11 @@ check_file_hashes() {
                 fi
             done
         fi
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
+
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 2>/dev/null)
+    echo -ne "\r\033[K"
 }
 
 # Reads pnpm.yaml
@@ -236,8 +248,14 @@ transform_pnpm_yaml() {
 # Check package.json files for compromised packages
 check_packages() {
     local scan_dir=$1
-    print_status "$BLUE" "🔍 Checking package.json files for compromised packages..."
 
+    local filesCount
+    filesCount=$(($(find "$scan_dir" -name "package.json" | wc -l 2>/dev/null)))
+
+    print_status "$BLUE" "🔍 Checking $filesCount package.json files for compromised packages..."
+
+    local filesChecked
+    filesChecked=0
     while IFS= read -r -d '' package_file; do
         if [[ -f "$package_file" && -r "$package_file" ]]; then
             # Check for specific compromised packages
@@ -263,7 +281,12 @@ check_packages() {
             done
 
         fi
+
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
+
     done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
+    echo -ne "\r\033[K"
 }
 
 # Check for suspicious postinstall hooks
@@ -611,7 +634,7 @@ check_package_integrity() {
             # Check for recently modified lockfiles with @ctrl packages (potential worm activity)
             if grep -q "@ctrl" "$lockfile" 2>/dev/null; then
                 local file_age
-                file_age=$(stat -f "%m" "$lockfile" 2>/dev/null || echo "0")
+                file_age=$(date -r "$lockfile" +%s 2>/dev/null || echo "0")
                 local current_time
                 current_time=$(date +%s)
                 local age_diff=$((current_time - file_age))
