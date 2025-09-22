@@ -153,7 +153,7 @@ check_file_hashes() {
     local scan_dir=$1
 
     local filesCount
-    filesCount=$(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) | wc -l 2>/dev/null)
+    filesCount=$(($(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) | wc -l 2>/dev/null)))
 
     print_status "$BLUE" "🔍 Checking $filesCount files for known malicious content..."
 
@@ -175,6 +175,7 @@ check_file_hashes() {
         echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
 
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 2>/dev/null)
+    echo -ne "\r\033[K"
 }
 
 # Reads pnpm.yaml
@@ -247,7 +248,7 @@ check_packages() {
     local scan_dir=$1
 
     local filesCount
-    filesCount=$(find "$scan_dir" -name "package.json" | wc -l 2>/dev/null)
+    filesCount=$(($(find "$scan_dir" -name "package.json" | wc -l 2>/dev/null)))
 
     print_status "$BLUE" "🔍 Checking $filesCount package.json files for compromised packages..."
 
@@ -283,6 +284,7 @@ check_packages() {
         echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
 
     done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
+    echo -ne "\r\033[K"
 }
 
 # Check for suspicious postinstall hooks
